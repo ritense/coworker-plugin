@@ -14,12 +14,10 @@
  * limitations under the License.
  */
 
-/*
- * Public API Surface of sample-plugin
- */
-
-export * from "./lib/plugins/sample-plugin/models";
-export * from "./lib/plugins/sample-plugin/sample-plugin-module";
-export * from "./lib/plugins/sample-plugin/sample-plugin.specification";
-export * from "./lib/plugins/sample-plugin/components/sample-plugin-configuration/sample-plugin-configuration.component";
-export * from "./lib/plugins/sample-plugin/components/sample-action-configuration/sample-action-configuration.component";
+export * from './lib/models';
+export * from './lib/coworker-plugin-module';
+export * from './lib/coworker-plugin.specification';
+export * from './lib/components/coworker-configuration/coworker-configuration.component';
+export * from './lib/components/publish-coworker/publish-coworker-configuration.component';
+export * from './lib/components/chat-coworker/chat-coworker-configuration.component';
+export * from './lib/components/receive-coworker/receive-coworker-configuration.component';

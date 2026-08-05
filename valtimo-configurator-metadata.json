@@ -1,17 +1,17 @@
 {
-    "name": "sample-plugin",
+    "name": "coworker",
     "version": 1,
     "backend": [
         {
-            "import": "com.ritense.valtimoplugins:sample-plugin"
+            "import": "com.ritense.valtimoplugins:coworker"
         }
     ],
     "frontend": {
-        "import": "@valtimo-plugins/sample-plugin",
+        "import": "@valtimo-plugins/coworker",
         "codeAdditions": [
             {
-                "spec": "samplePluginSpecification",
-                "module": "SamplePluginModule"
+                "spec": "coworkerPluginSpecification",
+                "module": "CoworkerPluginModule"
             }
         ]
     }

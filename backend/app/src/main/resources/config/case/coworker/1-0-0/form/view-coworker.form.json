@@ -1,0 +1,62 @@
+{
+    "display": "form",
+    "components": [
+        {
+            "key": "vraag",
+            "type": "textarea",
+            "input": true,
+            "label": "Ingediende melding",
+            "tableView": true,
+            "rows": 6,
+            "autoExpand": true,
+            "disabled": true,
+            "attributes": {
+                "data-testid": "view-coworker-vraag"
+            },
+            "applyMaskOn": "change"
+        },
+        {
+            "key": "pv.coworkerContent",
+            "type": "textarea",
+            "input": true,
+            "label": "Antwoord van de CoWorker",
+            "tableView": true,
+            "rows": 10,
+            "autoExpand": true,
+            "attributes": {
+                "data-testid": "view-coworker-coworkerContent"
+            },
+            "applyMaskOn": "change"
+        },
+        {
+            "key": "pv.coworkerSuccess",
+            "type": "textfield",
+            "input": true,
+            "label": "Geslaagd",
+            "tableView": true,
+            "attributes": {
+                "data-testid": "view-coworker-coworkerSuccess"
+            },
+            "applyMaskOn": "change"
+        },
+        {
+            "key": "pv.coworkerError",
+            "type": "textfield",
+            "input": true,
+            "label": "Foutmelding",
+            "tableView": true,
+            "attributes": {
+                "data-testid": "view-coworker-coworkerError"
+            },
+            "applyMaskOn": "change"
+        },
+        {
+            "key": "submit",
+            "type": "button",
+            "input": true,
+            "label": "Afronden",
+            "tableView": false,
+            "disableOnInvalid": true
+        }
+    ]
+}

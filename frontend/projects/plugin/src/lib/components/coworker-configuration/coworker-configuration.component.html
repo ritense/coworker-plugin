@@ -1,0 +1,92 @@
+<!--
+  ~ Copyright 2026 Ritense BV, the Netherlands.
+  ~
+  ~ Licensed under EUPL, Version 1.2 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~ https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" basis,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
+<v-form
+  (valueChange)="formValueChange($event)"
+  *ngIf="{
+    disabled: disabled$ | async,
+    prefill: prefillConfiguration$ ? (prefillConfiguration$ | async) : null
+  } as obs"
+>
+  <v-input
+    name="configurationTitle"
+    [title]="'configurationTitle' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.configurationTitle"
+    [required]="true"
+    [tooltip]="'configurationTitleTooltip' | pluginTranslate: pluginId | async"
+    [widthPx]="350"
+    placeholder="Coworker Plugin"
+  >
+  </v-input>
+  <v-input
+    name="source"
+    [title]="'source' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.source"
+    [required]="true"
+    [tooltip]="'sourceTooltip' | pluginTranslate: pluginId | async"
+    placeholder="urn:nld:oin:00000000000000000001:systeem:coworker-plugin"
+  ></v-input>
+  <v-input
+    name="requestQueue"
+    [title]="'requestQueue' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.requestQueue"
+    [required]="true"
+    [tooltip]="'requestQueueTooltip' | pluginTranslate: pluginId | async"
+    placeholder="vcs.chat.in"
+  ></v-input>
+  <v-input
+    name="replyQueue"
+    [title]="'replyQueue' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.replyQueue"
+    [required]="true"
+    [tooltip]="'replyQueueTooltip' | pluginTranslate: pluginId | async"
+    placeholder="coworker-plugin.reply"
+  ></v-input>
+  <v-input
+    name="coworkerUrl"
+    [title]="'coworkerUrl' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.coworkerUrl"
+    [tooltip]="'coworkerUrlTooltip' | pluginTranslate: pluginId | async"
+    placeholder="https://coworker.example.nl"
+  ></v-input>
+  <v-input
+    name="coworkerUsername"
+    [title]="'coworkerUsername' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.coworkerUsername"
+    [tooltip]="'coworkerUsernameTooltip' | pluginTranslate: pluginId | async"
+  ></v-input>
+  <v-input
+    type="password"
+    name="coworkerPassword"
+    [title]="'coworkerPassword' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.coworkerPassword"
+    [tooltip]="'coworkerPasswordTooltip' | pluginTranslate: pluginId | async"
+  ></v-input>
+</v-form>

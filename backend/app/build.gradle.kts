@@ -10,6 +10,7 @@ dependencies {
     implementation("com.ritense.valtimo:local-mail:$valtimoVersion")
 
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-amqp")
     implementation("org.postgresql:postgresql")
     implementation("io.github.oshai:kotlin-logging:$kotlinLoggingVersion")
 
@@ -28,7 +29,7 @@ apply(from = "../../gradle/environment.gradle.kts")
 val configureEnvironment = extra["configureEnvironment"] as (task: ProcessForkOptions) -> Unit
 
 dockerCompose {
-    setProjectName("valtimo-docker-compose")
+    setProjectName("coworker-plugin")
     stopContainers = false
     removeContainers = false
     removeVolumes = false

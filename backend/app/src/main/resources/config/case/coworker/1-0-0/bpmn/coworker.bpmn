@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" exporter="Camunda Modeler" exporterVersion="5.34.0"
+                  expressionLanguage="http://www.w3.org/1999/XPath" id="Definitions_coworker"
+                  targetNamespace="http://bpmn.io/schema/bpmn" typeLanguage="http://www.w3.org/2001/XMLSchema">
+  <bpmn:process camunda:versionTag="CD:coworker:1.0.0" id="coworker" isClosed="false"
+                isExecutable="true" name="Coworker" processType="None">
+    <bpmn:startEvent camunda:asyncAfter="true" id="StartEvent" isInterrupting="true" parallelMultiple="false">
+      <bpmn:outgoing>Flow_start_publish</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_start_publish" sourceRef="StartEvent" targetRef="SendTaskPublish"/>
+    <bpmn:sendTask camunda:asyncAfter="true" camunda:asyncBefore="true" camunda:expression="${null}"
+                   completionQuantity="1" id="SendTaskPublish" implementation="##WebService"
+                   isForCompensation="false" name="Publish Coworker" startQuantity="1">
+      <bpmn:incoming>Flow_start_publish</bpmn:incoming>
+      <bpmn:outgoing>Flow_publish_wait</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sequenceFlow id="Flow_publish_wait" sourceRef="SendTaskPublish" targetRef="ReceiveTaskWait"/>
+    <bpmn:receiveTask camunda:asyncAfter="true" camunda:asyncBefore="true" completionQuantity="1"
+                      id="ReceiveTaskWait" implementation="##WebService" instantiate="false"
+                      isForCompensation="false" name="Wait for Coworker" startQuantity="1">
+      <bpmn:incoming>Flow_publish_wait</bpmn:incoming>
+      <bpmn:outgoing>Flow_wait_view</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:sequenceFlow id="Flow_wait_view" sourceRef="ReceiveTaskWait" targetRef="ViewCoworker"/>
+    <bpmn:userTask camunda:candidateGroups="ROLE_USER" completionQuantity="1" id="ViewCoworker"
+                   implementation="##unspecified" isForCompensation="false" name="View coworker" startQuantity="1">
+      <bpmn:incoming>Flow_wait_view</bpmn:incoming>
+      <bpmn:outgoing>Flow_view_end</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_view_end" sourceRef="ViewCoworker" targetRef="EndEvent"/>
+    <bpmn:endEvent id="EndEvent">
+      <bpmn:incoming>Flow_view_end</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane bpmnElement="coworker" id="BPMNPlane_1">
+      <bpmndi:BPMNShape bpmnElement="StartEvent" id="StartEvent_di">
+        <dc:Bounds height="36" width="36" x="179" y="99"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="SendTaskPublish" id="SendTaskPublish_di">
+        <dc:Bounds height="80" width="100" x="270" y="77"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ReceiveTaskWait" id="ReceiveTaskWait_di">
+        <dc:Bounds height="80" width="100" x="430" y="77"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ViewCoworker" id="ViewCoworker_di">
+        <dc:Bounds height="80" width="100" x="590" y="77"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="EndEvent" id="EndEvent_di">
+        <dc:Bounds height="36" width="36" x="752" y="99"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="Flow_start_publish" id="Flow_start_publish_di">
+        <di:waypoint x="215" y="117"/>
+        <di:waypoint x="270" y="117"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Flow_publish_wait" id="Flow_publish_wait_di">
+        <di:waypoint x="370" y="117"/>
+        <di:waypoint x="430" y="117"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Flow_wait_view" id="Flow_wait_view_di">
+        <di:waypoint x="530" y="117"/>
+        <di:waypoint x="590" y="117"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Flow_view_end" id="Flow_view_end_di">
+        <di:waypoint x="690" y="117"/>
+        <di:waypoint x="752" y="117"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,78 @@
+{
+    "display": "form",
+    "components": [
+        {
+            "key": "melderNaam",
+            "type": "textfield",
+            "input": true,
+            "label": "Naam melder",
+            "tableView": true,
+            "defaultValue": "J. Jansen",
+            "applyMaskOn": "change"
+        },
+        {
+            "key": "polisnummer",
+            "type": "textfield",
+            "input": true,
+            "label": "Polisnummer",
+            "tableView": true,
+            "defaultValue": "POL-2023-88123",
+            "applyMaskOn": "change"
+        },
+        {
+            "key": "schadedatum",
+            "type": "textfield",
+            "input": true,
+            "label": "Schadedatum",
+            "tableView": true,
+            "defaultValue": "2026-03-03",
+            "applyMaskOn": "change"
+        },
+        {
+            "key": "schadeType",
+            "type": "select",
+            "input": true,
+            "label": "Type schade",
+            "tableView": true,
+            "dataSrc": "values",
+            "defaultValue": "Waterschade",
+            "data": {
+                "values": [
+                    { "label": "Waterschade", "value": "Waterschade" },
+                    { "label": "Brandschade", "value": "Brandschade" },
+                    { "label": "Inbraak/diefstal", "value": "Inbraak" },
+                    { "label": "Stormschade", "value": "Storm" },
+                    { "label": "Overig", "value": "Overig" }
+                ]
+            },
+            "template": "<span>{{ item.label }}</span>"
+        },
+        {
+            "key": "geschatBedrag",
+            "type": "number",
+            "input": true,
+            "label": "Geschat schadebedrag (EUR)",
+            "tableView": true,
+            "defaultValue": 4200
+        },
+        {
+            "key": "vraag",
+            "type": "textarea",
+            "input": true,
+            "label": "Melding en vraag aan de CoWorker",
+            "tableView": true,
+            "rows": 8,
+            "autoExpand": true,
+            "defaultValue": "Vat de volgende schademelding beknopt samen en geef een eerste beoordeling of de schade waarschijnlijk gedekt is onder een inboedel-/opstalverzekering. Sluit af met een concreet vervolgadvies voor de behandelaar.\n\nMelding: Op 3 maart 2026 is de kelder van mevrouw J. Jansen (Dorpsstraat 12, 1234 AB Almelo) ondergelopen nadat een waterleiding onder de gootsteen sprong. Beschadigd zijn een houten vloer, een wasmachine en enkele dozen met opgeslagen kleding. Het geschatte schadebedrag is EUR 4.200. Polisnummer POL-2023-88123. Er is geen sprake van achterstallig onderhoud; de betreffende leiding is twee jaar geleden vervangen.",
+            "applyMaskOn": "change"
+        },
+        {
+            "key": "submit",
+            "type": "button",
+            "input": true,
+            "label": "Melding indienen",
+            "tableView": false,
+            "disableOnInvalid": true
+        }
+    ]
+}

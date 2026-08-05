@@ -23,8 +23,8 @@ pluginManager.withPlugin("maven-publish") {
                 version = pluginProperties.pluginVersion
 
                 pom {
-                    name = "Sample plugin module"
-                    description = "A module containing a sample plugin"
+                    name = "Coworker module"
+                    description = "The Coworker module for sending and receiving Coworkers via the Valtimo outbox and inbox libraries"
                     developers {
                         developer {
                             id = "team-valtimo"

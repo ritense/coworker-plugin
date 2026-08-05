@@ -1,0 +1,33 @@
+{
+    "$id": "coworker.schema",
+    "type": "object",
+    "title": "Coworker",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+        "melderNaam": {
+            "type": "string",
+            "title": "Naam melder"
+        },
+        "polisnummer": {
+            "type": "string",
+            "title": "Polisnummer"
+        },
+        "schadedatum": {
+            "type": "string",
+            "title": "Schadedatum"
+        },
+        "schadeType": {
+            "type": "string",
+            "title": "Type schade"
+        },
+        "geschatBedrag": {
+            "type": "number",
+            "title": "Geschat schadebedrag (EUR)"
+        },
+        "vraag": {
+            "type": "string",
+            "title": "Melding en vraag aan de CoWorker"
+        }
+    },
+    "additionalProperties": true
+}

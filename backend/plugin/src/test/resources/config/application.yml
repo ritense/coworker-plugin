@@ -1,9 +1,15 @@
 spring:
   main:
     allow-bean-definition-overriding: true
+  rabbitmq:
+    # No broker in the integration-test harness; do not start the CoWorker reply
+    # listener or eagerly declare queues.
+    listener:
+      simple:
+        auto-startup: false
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:postgresql://localhost:54342/sample-plugin-test
+    url: jdbc:postgresql://localhost:54342/coworker-test
     username: test-user
     password: password
     driver-class-name: org.postgresql.Driver
@@ -32,3 +38,12 @@ spring-actuator:
 valtimo:
   plugin:
     encryption-secret: "abcdefghijklmnop"
+
+operaton:
+  bpm:
+    database:
+      type: postgres
+    generic-properties:
+      properties:
+        deploy-changed-only: true
+        enforceHistoryTimeToLive: false
