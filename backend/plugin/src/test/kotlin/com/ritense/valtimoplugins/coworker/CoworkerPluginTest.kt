@@ -110,6 +110,10 @@ class CoworkerPluginTest : BaseTest() {
         assertThat(input!!["key"].asText()).isEqualTo("value")
     }
 
+    /*
+     * DISABLED in v1 alongside the chat-coworker (REST) action — see CoworkerPlugin.kt.
+     * Re-enable together with the action once the CoWorker server's chat endpoint is fixed.
+     *
     @Test
     fun `chat-coworker calls REST and writes the reply variables inline`() {
         plugin.coworkerUrl = "https://coworker.example.nl"
@@ -166,6 +170,7 @@ class CoworkerPluginTest : BaseTest() {
         assertThat(vars["coworkerType"]).isEqualTo("nl.valtimo.coworker.chat-error")
         assertThat(vars["coworkerError"]).isEqualTo("bad")
     }
+    */
 
     @Test
     fun `rejects a request without prompt or expertise input`() {
