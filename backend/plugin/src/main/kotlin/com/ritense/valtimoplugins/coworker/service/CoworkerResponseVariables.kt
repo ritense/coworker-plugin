@@ -26,6 +26,12 @@ import com.ritense.valtimoplugins.coworker.domain.CoworkerEventType
  * variables to BPMN regardless of which transport delivered the reply.
  */
 object CoworkerResponseVariables {
+    /** The CoWorker's answer. */
+    const val VAR_CONTENT = "coworkerContent"
+
+    /** Why the configured result mapping did not (fully) succeed; absent when it did. */
+    const val VAR_MAPPING_ERROR = "coworkerMappingError"
+
     fun from(data: ChatResponseData): Map<String, Any> =
         build(
             eventId = data.messageId,
@@ -50,7 +56,7 @@ object CoworkerResponseVariables {
             )
         correlationId?.let { variables["coworkerCorrelationId"] = it }
         eventId?.let { variables["coworkerEventId"] = it }
-        data.content?.let { variables["coworkerContent"] = it }
+        data.content?.let { variables[VAR_CONTENT] = it }
         data.error?.let { variables["coworkerError"] = it }
         data.errorCode?.let { variables["coworkerErrorCode"] = it }
         return variables

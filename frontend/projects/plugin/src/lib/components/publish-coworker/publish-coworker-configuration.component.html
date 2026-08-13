@@ -47,6 +47,15 @@
     [tooltip]="'expertiseIdTooltip' | pluginTranslate: pluginId | async"
   ></v-input>
   <v-input
+    name="documentResourceId"
+    [title]="'documentResourceId' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [defaultValue]="obs.prefill?.documentResourceId"
+    [disabled]="obs.disabled"
+    [tooltip]="'documentResourceIdTooltip' | pluginTranslate: pluginId | async"
+    placeholder="pv:resourceId"
+  ></v-input>
+  <v-input
     name="input"
     [title]="'input' | pluginTranslate: pluginId | async"
     [margin]="true"

@@ -19,6 +19,7 @@ package com.ritense.valtimoplugins.coworker.autoconfiguration
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.ritense.plugin.service.PluginService
 import com.ritense.processlink.repository.ValtimoPluginProcessLinkRepository
+import com.ritense.resource.service.TemporaryResourceStorageService
 import com.ritense.valtimo.contract.config.LiquibaseMasterChangeLogLocation
 import com.ritense.valtimo.contract.document.CaseDocumentResolver
 import com.ritense.valtimoplugins.coworker.domain.ProcessedCoworker
@@ -27,13 +28,17 @@ import com.ritense.valtimoplugins.coworker.plugin.CoworkerPluginFactory
 import com.ritense.valtimoplugins.coworker.repository.CoworkerFailedEventRepository
 import com.ritense.valtimoplugins.coworker.repository.ProcessedCoworkerRepository
 import com.ritense.valtimoplugins.coworker.security.CoworkerHttpSecurityConfigurer
+import com.ritense.valtimoplugins.coworker.service.CoworkerDocumentResolver
 import com.ritense.valtimoplugins.coworker.service.CoworkerFailedEventRetryService
 import com.ritense.valtimoplugins.coworker.service.CoworkerManagementService
 import com.ritense.valtimoplugins.coworker.service.CoworkerProcessResumeService
 import com.ritense.valtimoplugins.coworker.service.CoworkerResponseProcessor
+import com.ritense.valtimoplugins.coworker.service.CoworkerResultMapper
+import com.ritense.valtimoplugins.coworker.service.PromptTemplateResolver
 import com.ritense.valtimoplugins.coworker.transport.RabbitMqCoworkerChatClient
 import com.ritense.valtimoplugins.coworker.transport.RestCoworkerChatClient
 import com.ritense.valtimoplugins.coworker.web.rest.CoworkerManagementResource
+import com.ritense.valueresolver.ValueResolverService
 import org.operaton.bpm.engine.RepositoryService
 import org.operaton.bpm.engine.RuntimeService
 import org.springframework.amqp.core.Queue
@@ -51,6 +56,7 @@ import org.springframework.core.Ordered.HIGHEST_PRECEDENCE
 import org.springframework.core.annotation.Order
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories
 import org.springframework.scheduling.annotation.EnableScheduling
+import org.springframework.util.unit.DataSize
 import org.springframework.web.client.RestClient
 
 @AutoConfiguration
@@ -86,12 +92,28 @@ class CoworkerAutoConfiguration {
     ): RabbitMqCoworkerChatClient = RabbitMqCoworkerChatClient(coworkerRabbitTemplate, objectMapper)
 
     @Bean
+    @ConditionalOnMissingBean(PromptTemplateResolver::class)
+    fun promptTemplateResolver(
+        valueResolverService: ValueResolverService,
+        objectMapper: ObjectMapper,
+    ): PromptTemplateResolver = PromptTemplateResolver(valueResolverService, objectMapper)
+
+    @Bean
+    @ConditionalOnMissingBean(CoworkerDocumentResolver::class)
+    fun coworkerDocumentResolver(
+        temporaryResourceStorageService: TemporaryResourceStorageService,
+        @Value("\${valtimo.coworker.max-document-size:10MB}") maxDocumentSize: DataSize,
+    ): CoworkerDocumentResolver = CoworkerDocumentResolver(temporaryResourceStorageService, maxDocumentSize.toBytes())
+
+    @Bean
     @ConditionalOnMissingBean(CoworkerPluginFactory::class)
     fun coworkerPluginFactory(
         pluginService: PluginService,
         restCoworkerChatClient: RestCoworkerChatClient,
         rabbitMqCoworkerChatClient: RabbitMqCoworkerChatClient,
         caseDocumentResolver: CaseDocumentResolver,
+        promptTemplateResolver: PromptTemplateResolver,
+        coworkerDocumentResolver: CoworkerDocumentResolver,
         objectMapper: ObjectMapper,
     ): CoworkerPluginFactory =
         CoworkerPluginFactory(
@@ -99,6 +121,8 @@ class CoworkerAutoConfiguration {
             restCoworkerChatClient,
             rabbitMqCoworkerChatClient,
             caseDocumentResolver,
+            promptTemplateResolver,
+            coworkerDocumentResolver,
             objectMapper,
         )
 
@@ -120,17 +144,25 @@ class CoworkerAutoConfiguration {
     fun coworkerHttpSecurityConfigurer(): CoworkerHttpSecurityConfigurer = CoworkerHttpSecurityConfigurer()
 
     @Bean
+    @ConditionalOnMissingBean(CoworkerResultMapper::class)
+    fun coworkerResultMapper(objectMapper: ObjectMapper): CoworkerResultMapper = CoworkerResultMapper(objectMapper)
+
+    @Bean
     @ConditionalOnMissingBean(CoworkerProcessResumeService::class)
     fun coworkerProcessResumeService(
         pluginProcessLinkRepository: ValtimoPluginProcessLinkRepository,
         runtimeService: RuntimeService,
         repositoryService: RepositoryService,
+        coworkerResultMapper: CoworkerResultMapper,
+        valueResolverService: ValueResolverService,
         objectMapper: ObjectMapper,
     ): CoworkerProcessResumeService =
         CoworkerProcessResumeService(
             pluginProcessLinkRepository,
             runtimeService,
             repositoryService,
+            coworkerResultMapper,
+            valueResolverService,
             objectMapper,
         )
 

@@ -35,6 +35,10 @@ dependencies {
     compileOnly("com.ritense.valtimo:outbox")
     compileOnly("com.ritense.valtimo:plugin-valtimo")
     compileOnly("com.ritense.valtimo:process-document")
+    // ValueResolverService, for `{{pv:...}}` / `{{doc:...}}` placeholders in prompts.
+    compileOnly("com.ritense.valtimo:value-resolver")
+    // TemporaryResourceStorageService, for reading a document to send along.
+    compileOnly("com.ritense.valtimo:temporary-resource-storage")
 
     compileOnly(kotlin("reflect"))
     compileOnly("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -55,6 +59,7 @@ dependencies {
     testImplementation("com.ritense.valtimo:plugin")
     testImplementation("com.ritense.valtimo:temporary-resource-storage")
     testImplementation("com.ritense.valtimo:test-utils-common")
+    testImplementation("com.ritense.valtimo:value-resolver")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-amqp")

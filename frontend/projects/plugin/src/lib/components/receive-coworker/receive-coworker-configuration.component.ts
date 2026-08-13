@@ -16,9 +16,14 @@
 
 import {Component, EventEmitter, Input, OnDestroy, OnInit, Output} from '@angular/core';
 import {FunctionConfigurationComponent, FunctionConfigurationData} from '@valtimo/plugin';
-import {SelectItem} from '@valtimo/components';
+import {MultiInputKeyValue, SelectItem} from '@valtimo/components';
 import {BehaviorSubject, combineLatest, filter, map, Observable, Subscription, switchMap, take} from 'rxjs';
 import {COWORKER_EVENT_TYPES, ReceiveCoworkerConfig} from '../../models';
+
+/** What `v-form` emits: the multi-input contributes key/value rows, not source/target. */
+type ReceiveCoworkerFormValue = Omit<ReceiveCoworkerConfig, 'resultMappings'> & {
+  resultMappings?: MultiInputKeyValue[];
+};
 
 @Component({
   standalone: false,
@@ -41,22 +46,54 @@ export class ReceiveCoworkerConfigurationComponent
     {id: COWORKER_EVENT_TYPES.CHAT_ERROR, text: 'Chat error'},
   ];
 
+  /**
+   * The saved mappings as the multi-input's key/value rows, resolved once per prefill.
+   * Deliberately not a method call in the template: that would hand the multi-input a
+   * new array on every change-detection run, and each one restarts its value stream.
+   */
+  readonly prefillMappings$ = new BehaviorSubject<MultiInputKeyValue[]>([]);
+
   private saveSubscription!: Subscription;
+  private prefillSubscription!: Subscription;
   private readonly formValue$ = new BehaviorSubject<ReceiveCoworkerConfig | null>(null);
   private readonly valid$ = new BehaviorSubject<boolean>(false);
 
   ngOnInit(): void {
     this.openSaveSubscription();
+    this.openPrefillSubscription();
   }
 
   ngOnDestroy(): void {
     this.saveSubscription?.unsubscribe();
+    this.prefillSubscription?.unsubscribe();
   }
 
-  formValueChange(formValue: ReceiveCoworkerConfig): void {
-    this.formValue$.next(formValue);
+  formValueChange(formValue: ReceiveCoworkerFormValue): void {
+    this.formValue$.next(this.toConfig(formValue));
     this.valid$.next(true);
     this.valid.emit(true);
+  }
+
+  private openPrefillSubscription(): void {
+    this.prefillSubscription = this.prefillConfiguration$
+      ?.pipe(map(prefill => prefill?.resultMappings ?? []))
+      .subscribe(mappings => {
+        this.prefillMappings$.next(mappings.map(mapping => ({key: mapping.source, value: mapping.target})));
+      });
+  }
+
+  /**
+   * The multi-input speaks key/value; the plugin action speaks source/target. Rows
+   * that are only half filled in are dropped rather than saved as broken mappings.
+   */
+  private toConfig(formValue: ReceiveCoworkerFormValue): ReceiveCoworkerConfig {
+    const {resultMappings, ...rest} = formValue;
+    return {
+      ...rest,
+      resultMappings: (resultMappings ?? [])
+        .filter(row => !!row.key && !!row.value)
+        .map(row => ({source: row.key!, target: row.value!})),
+    };
   }
 
   private openSaveSubscription(): void {

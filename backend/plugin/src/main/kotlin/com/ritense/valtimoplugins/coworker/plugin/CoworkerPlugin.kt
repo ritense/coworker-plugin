@@ -28,12 +28,12 @@ import com.ritense.processlink.domain.ActivityTypeWithEventName.INTERMEDIATE_CAT
 import com.ritense.processlink.domain.ActivityTypeWithEventName.INTERMEDIATE_THROW_EVENT_START
 import com.ritense.processlink.domain.ActivityTypeWithEventName.RECEIVE_TASK_END
 import com.ritense.processlink.domain.ActivityTypeWithEventName.SEND_TASK_START
-import com.ritense.processlink.domain.ActivityTypeWithEventName.SERVICE_TASK_START
 import com.ritense.valtimo.contract.document.CaseDocumentResolver
 import com.ritense.valtimoplugins.coworker.domain.ChatRequestData
 import com.ritense.valtimoplugins.coworker.domain.CoworkerEventType
+import com.ritense.valtimoplugins.coworker.service.CoworkerDocumentResolver
 import com.ritense.valtimoplugins.coworker.service.CoworkerProcessResumeService.Companion.VAR_CLOUD_EVENT_ID
-import com.ritense.valtimoplugins.coworker.service.CoworkerResponseVariables
+import com.ritense.valtimoplugins.coworker.service.PromptTemplateResolver
 import com.ritense.valtimoplugins.coworker.transport.RabbitMqCoworkerChatClient
 import com.ritense.valtimoplugins.coworker.transport.RestCoworkerChatClient
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -48,6 +48,8 @@ class CoworkerPlugin(
     private val restCoworkerChatClient: RestCoworkerChatClient,
     private val rabbitMqCoworkerChatClient: RabbitMqCoworkerChatClient,
     private val caseDocumentResolver: CaseDocumentResolver,
+    private val promptTemplateResolver: PromptTemplateResolver,
+    private val coworkerDocumentResolver: CoworkerDocumentResolver,
     private val objectMapper: ObjectMapper,
 ) {
     @PluginProperty(key = "source", secret = false, required = true)
@@ -80,8 +82,9 @@ class CoworkerPlugin(
         @PluginActionProperty userPrompt: String?,
         @PluginActionProperty expertiseId: String?,
         @PluginActionProperty input: String?,
+        @PluginActionProperty documentResourceId: String?,
     ) {
-        val request = buildRequest(execution, coworkerId, userPrompt, expertiseId, input)
+        val request = buildRequest(execution, coworkerId, userPrompt, expertiseId, input, documentResourceId)
 
         logger.debug { "Publishing chat-request for coworkerId '${request.coworkerId}', caseId '${request.caseId}'" }
         val cloudEventId = rabbitMqCoworkerChatClient.publish(request, source, requestQueue)
@@ -131,7 +134,7 @@ class CoworkerPlugin(
             "CoWorker REST chat completed (success=${response.success}) for execution '${execution.id}'"
         }
     }
-    */
+     */
 
     @PluginAction(
         key = "receive-coworker",
@@ -158,6 +161,7 @@ class CoworkerPlugin(
         userPrompt: String?,
         expertiseId: String?,
         input: String?,
+        documentResourceId: String? = null,
     ): ChatRequestData {
         require(source.startsWith("urn:")) { "CoWorker 'source' must be a urn: (was '$source')" }
         require(!coworkerId.isNullOrBlank()) { "'coworkerId' is required on the coworker action" }
@@ -165,14 +169,21 @@ class CoworkerPlugin(
         // The CoWorker caseId is the owning case document of the process's document.
         val documentId = execution.getJsonSchemaDocumentId()
         val caseDocumentId = caseDocumentResolver.resolveCaseDocumentId(documentId)
+
+        // `{{pv:...}}` / `{{doc:...}}` placeholders are filled with case data before
+        // the prompt leaves Valtimo; a prompt without placeholders passes through.
+        val resolvedPrompt = promptTemplateResolver.resolve(userPrompt, execution)
+
         val request =
             ChatRequestData(
                 coworkerId = coworkerId,
                 caseId = caseDocumentId.toString(),
-                userPrompt = userPrompt?.takeIf { it.isNotBlank() },
+                userPrompt = resolvedPrompt?.takeIf { it.isNotBlank() },
                 expertiseId = expertiseId?.takeIf { it.isNotBlank() },
                 input = input?.takeIf { it.isNotBlank() }?.let { parseInput(it) },
                 replyTo = replyQueue,
+                // Optional: the file behind a Valtimo resource id, base64 in the event.
+                documents = coworkerDocumentResolver.resolve(documentResourceId),
             )
         require(request.isValid()) {
             "chat-request requires either a 'userPrompt' or an 'expertiseId' + 'input'"
