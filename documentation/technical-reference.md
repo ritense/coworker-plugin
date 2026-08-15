@@ -71,6 +71,7 @@ The host app provides the broker connection (`spring.rabbitmq.*`) and:
 |--------------------------------|-------------------------|-------------------------------------------------|
 | `valtimo.coworker.reply-queue` | `coworker-plugin.reply` | Reply queue name (declared durable on startup). |
 | `valtimo.coworker.retry-cron`  | `0 0 * * * *`           | Cron for retrying unmatched replies.            |
+| `valtimo.coworker.max-document-size` | `10MB`            | Maximum size of a document sent along with a chat-request. The file is base64-encoded into the CloudEvent, so it is ~33% larger on the wire and must fit within the broker's message size limit. |
 
 The reply queue must exist on the broker (the plugin declares it as a durable `Queue`
 bean; the sandbox app also declares it in

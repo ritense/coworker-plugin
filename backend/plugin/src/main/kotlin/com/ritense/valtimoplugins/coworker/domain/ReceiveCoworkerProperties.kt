@@ -16,6 +16,24 @@
 
 package com.ritense.valtimoplugins.coworker.domain
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class ReceiveCoworkerProperties(
     val eventType: String? = null,
+    val resultMappings: List<CoworkerResultMapping>? = null,
+)
+
+/**
+ * One line of the result mapping: take [source] out of the CoWorker's JSON answer
+ * and write it to [target].
+ *
+ * [source] is a JSON pointer into the answer (`/nettoBedrag`); [target] is a Valtimo
+ * value-resolver expression — `pv:naam` for a process variable or `doc:/pad` for a
+ * field in the case document.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class CoworkerResultMapping(
+    val source: String? = null,
+    val target: String? = null,
 )

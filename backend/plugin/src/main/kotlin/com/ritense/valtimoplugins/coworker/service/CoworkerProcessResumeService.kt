@@ -22,11 +22,14 @@ import com.ritense.plugin.domain.PluginProcessLink
 import com.ritense.processlink.domain.ActivityTypeWithEventName
 import com.ritense.processlink.repository.ValtimoPluginProcessLinkRepository
 import com.ritense.valtimoplugins.coworker.domain.ReceiveCoworkerProperties
+import com.ritense.valueresolver.ValueResolverService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.operaton.bpm.engine.RepositoryService
 import org.operaton.bpm.engine.RuntimeService
+import org.operaton.bpm.engine.runtime.Execution
 import org.operaton.bpm.model.bpmn.instance.CatchEvent
 import org.operaton.bpm.model.bpmn.instance.MessageEventDefinition
+import java.util.UUID
 
 /**
  * Resumes BPMN activities linked to the `receive-coworker` action for an
@@ -48,6 +51,8 @@ open class CoworkerProcessResumeService(
     private val pluginProcessLinkRepository: ValtimoPluginProcessLinkRepository,
     private val runtimeService: RuntimeService,
     private val repositoryService: RepositoryService,
+    private val resultMapper: CoworkerResultMapper,
+    private val valueResolverService: ValueResolverService,
     private val objectMapper: ObjectMapper,
 ) {
     @RunWithoutAuthorization
@@ -64,14 +69,18 @@ open class CoworkerProcessResumeService(
 
         var handled = false
         processLinks
-            .filter { matchesFilter(it, eventType) }
-            .forEach { processLink ->
+            .map { it to propertiesOf(it) }
+            .filter { (_, properties) -> matchesFilter(properties, eventType) }
+            .forEach { (processLink, properties) ->
+                // The mapping is per process link: two receive steps may pick different
+                // fields out of the same answer.
+                val delivered = applyResultMapping(processLink, properties, correlationId, variables)
                 val resumed =
                     when (processLink.activityType) {
                         ActivityTypeWithEventName.INTERMEDIATE_CATCH_EVENT_END ->
-                            correlateCatchEvent(processLink, correlationId, variables)
+                            correlateCatchEvent(processLink, correlationId, delivered)
                         ActivityTypeWithEventName.RECEIVE_TASK_END ->
-                            signalReceiveTask(processLink, correlationId, variables)
+                            signalReceiveTask(processLink, correlationId, delivered)
                         else -> {
                             logger.warn {
                                 "Unsupported activity type '${processLink.activityType}' for coworker process link"
@@ -84,13 +93,105 @@ open class CoworkerProcessResumeService(
         return handled
     }
 
+    private fun propertiesOf(processLink: PluginProcessLink): ReceiveCoworkerProperties? =
+        processLink.actionProperties?.let {
+            objectMapper.treeToValue(it, ReceiveCoworkerProperties::class.java)
+        }
+
     private fun matchesFilter(
-        processLink: PluginProcessLink,
+        properties: ReceiveCoworkerProperties?,
         eventType: String,
     ): Boolean {
-        val properties = processLink.actionProperties ?: return true
-        val filter = objectMapper.treeToValue(properties, ReceiveCoworkerProperties::class.java)
-        return filter.eventType.isNullOrBlank() || filter.eventType == eventType
+        val filter = properties?.eventType
+        return filter.isNullOrBlank() || filter == eventType
+    }
+
+    /**
+     * Runs the configured result mapping for [processLink]: `doc:` values are written
+     * to the case document straight away and `pv:` values are added to the variables
+     * delivered on resume.
+     *
+     * The document is written **before** the process is resumed, because resuming runs
+     * the following steps synchronously — a value written afterwards would arrive too
+     * late for the step that needs it.
+     */
+    private fun applyResultMapping(
+        processLink: PluginProcessLink,
+        properties: ReceiveCoworkerProperties?,
+        correlationId: String?,
+        variables: Map<String, Any>,
+    ): Map<String, Any> {
+        val mappings = properties?.resultMappings
+        if (mappings.isNullOrEmpty()) return variables
+
+        val content = variables[CoworkerResponseVariables.VAR_CONTENT] as? String
+        val result = resultMapper.map(mappings, content)
+        result.error?.let { logger.warn { "Result mapping for activity '${processLink.activityId}': $it" } }
+
+        if (result.documentValues.isNotEmpty()) {
+            writeToDocuments(processLink, correlationId, result.documentValues)
+        }
+
+        return variables +
+            result.processVariables +
+            (result.error?.let { mapOf(CoworkerResponseVariables.VAR_MAPPING_ERROR to it) } ?: emptyMap())
+    }
+
+    /** Writes the mapped values into the case document of every waiting branch. */
+    private fun writeToDocuments(
+        processLink: PluginProcessLink,
+        correlationId: String?,
+        documentValues: Map<String, Any>,
+    ) {
+        val documentIds =
+            findWaitingExecutions(
+                processLink,
+                correlationId,
+            ).mapNotNull { documentIdOf(it.processInstanceId) }
+        if (documentIds.isEmpty()) {
+            logger.warn {
+                "No case document found for correlationId '$correlationId' at activity " +
+                    "'${processLink.activityId}'; skipped writing ${documentValues.keys}"
+            }
+            return
+        }
+        documentIds.distinct().forEach { documentId ->
+            try {
+                valueResolverService.handleValues(documentId, documentValues)
+                logger.debug { "Wrote ${documentValues.keys} to document '$documentId'" }
+            } catch (e: Exception) {
+                // Never let a mapping problem strand the process: it still resumes.
+                logger.error(e) { "Failed to write ${documentValues.keys} to document '$documentId'" }
+            }
+        }
+    }
+
+    /** The document id of a process instance is its business key. */
+    private fun documentIdOf(processInstanceId: String): UUID? {
+        val businessKey =
+            runtimeService
+                .createProcessInstanceQuery()
+                .processInstanceId(processInstanceId)
+                .singleResult()
+                ?.businessKey
+        return businessKey?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+    }
+
+    /**
+     * The executions parked at this process link's activity whose execution-local
+     * correlation id matches — the same branch-level match the resume paths use.
+     */
+    private fun findWaitingExecutions(
+        processLink: PluginProcessLink,
+        correlationId: String?,
+    ): List<Execution> {
+        if (correlationId.isNullOrBlank()) return emptyList()
+        return runtimeService
+            .createExecutionQuery()
+            .processDefinitionId(processLink.processDefinitionId)
+            .activityId(processLink.activityId)
+            .variableValueEquals(VAR_CLOUD_EVENT_ID, correlationId)
+            .list()
     }
 
     /**
@@ -105,13 +206,7 @@ open class CoworkerProcessResumeService(
         variables: Map<String, Any>,
     ): Boolean {
         if (correlationId.isNullOrBlank()) return false
-        val executions =
-            runtimeService
-                .createExecutionQuery()
-                .processDefinitionId(processLink.processDefinitionId)
-                .activityId(processLink.activityId)
-                .variableValueEquals(VAR_CLOUD_EVENT_ID, correlationId)
-                .list()
+        val executions = findWaitingExecutions(processLink, correlationId)
 
         if (executions.isEmpty()) {
             logger.debug {

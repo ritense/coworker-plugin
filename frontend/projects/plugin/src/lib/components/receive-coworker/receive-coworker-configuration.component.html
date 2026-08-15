@@ -33,4 +33,17 @@
     [disabled]="obs.disabled"
     [tooltip]="'receiveEventTypeTooltip' | pluginTranslate: pluginId | async"
   ></v-select>
+  <valtimo-carbon-multi-input
+    name="resultMappings"
+    type="keyValue"
+    [title]="'resultMappings' | pluginTranslate: pluginId | async"
+    [tooltip]="'resultMappingsTooltip' | pluginTranslate: pluginId | async"
+    [keyColumnTitle]="'resultMappingSource' | pluginTranslate: pluginId | async"
+    [valueColumnTitle]="'resultMappingTarget' | pluginTranslate: pluginId | async"
+    [addRowText]="'resultMappingAddRow' | pluginTranslate: pluginId | async"
+    [defaultValues]="(prefillMappings$ | async) ?? []"
+    [disabled]="!!obs.disabled"
+    [margin]="true"
+    [fullWidth]="true"
+  ></valtimo-carbon-multi-input>
 </v-form>

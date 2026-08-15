@@ -42,6 +42,8 @@ interface PublishCoworkerConfig {
   userPrompt?: string;
   expertiseId?: string;
   input?: string;
+  // Valtimo resource id of a file to send along, usually `pv:resourceId`.
+  documentResourceId?: string;
 }
 
 // Same action properties as publish; the difference is the transport (synchronous REST, RabbitMQ fallback).
@@ -52,8 +54,18 @@ interface ChatCoworkerConfig {
   input?: string;
 }
 
+/**
+ * One line of the result mapping: `source` is a JSON pointer into the CoWorker's
+ * answer, `target` a value-resolver expression (`pv:naam` or `doc:/pad`).
+ */
+interface CoworkerResultMapping {
+  source: string;
+  target: string;
+}
+
 interface ReceiveCoworkerConfig {
   eventType?: CoworkerEventType;
+  resultMappings?: CoworkerResultMapping[];
 }
 
 // An option in the chat-coworker "Coworker" dropdown (returned by the plugin's
@@ -69,6 +81,7 @@ export {
   CoworkerConfig,
   CoworkerEventType,
   CoworkerOption,
+  CoworkerResultMapping,
   PublishCoworkerConfig,
   ReceiveCoworkerConfig,
 };

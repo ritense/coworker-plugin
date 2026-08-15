@@ -34,7 +34,7 @@ const coworkerPluginSpecification: PluginSpecification = {
   pluginTranslations: {
     nl: {
       title: "Coworker",
-      description: "Verstuur en ontvang Coworkers via RabbitMQ.",
+      description: "Communiceer met Coworker Server via RabbitMQ.",
       configurationTitle: "Configuratienaam",
       configurationTitleTooltip:
         "De naam van de huidige plugin-configuratie. Onder deze naam kan de configuratie in de rest van de applicatie teruggevonden worden.",
@@ -58,16 +58,30 @@ const coworkerPluginSpecification: PluginSpecification = {
       publishCoworkerId: "Coworker ID",
       publishCoworkerIdTooltip: "De Coworker die dit verzoek verwerkt. Ondersteunt value resolvers.",
       userPrompt: "Gebruikersprompt",
-      userPromptTooltip: "Vrije tekst voor de chat. Vereist tenzij een expertise wordt gebruikt. Ondersteunt value resolvers.",
+      userPromptTooltip:
+        "Vrije tekst voor de chat. Vereist tenzij een expertise wordt gebruikt. Gebruik {{pv:variabele}} of " +
+        "{{doc:/pad}} om zaakgegevens in de tekst te verwerken, bijv. 'Beoordeel {{doc:/vraag}} op spoed'.",
       expertiseId: "Expertise ID",
       expertiseIdTooltip: "Optioneel: expertise voor gestructureerde verwerking. Ondersteunt value resolvers.",
+      documentResourceId: "Document",
+      documentResourceIdTooltip:
+        "Optioneel: het Valtimo resource-id van een bestand dat met de vraag wordt meegestuurd, " +
+        "meestal pv:resourceId. Maximaal 10 MB (instelbaar).",
       input: "Input",
       inputTooltip: "Optionele JSON-input voor expertise-verwerking. Ondersteunt value resolvers.",
       receiveEventTypeTooltip: "Het Coworker-event waarop deze stap reageert.",
+      resultMappings: "Antwoord verwerken",
+      resultMappingsTooltip:
+        "Optioneel: haal velden uit een JSON-antwoord en zet ze in een procesvariabele of het zaakdossier. " +
+        "Werkt alleen als de Coworker JSON antwoordt — het beste via een antwoordschema op de Coworker zelf, " +
+        "anders door er in de prompt om te vragen.",
+      resultMappingSource: "Veld in antwoord (bijv. /nettoBedrag)",
+      resultMappingTarget: "Doel (pv:naam of doc:/pad)",
+      resultMappingAddRow: "Regel toevoegen",
     },
     en: {
       title: "Coworker",
-      description: "Send and receive Coworkers via RabbitMQ.",
+      description: "Communicate with Coworker Server via RabbitMQ.",
       configurationTitle: "Configuration name",
       configurationTitleTooltip:
         "The name of the current plugin configuration. Under this name, the configuration can be found in the rest of the application.",
@@ -91,12 +105,26 @@ const coworkerPluginSpecification: PluginSpecification = {
       publishCoworkerId: "Coworker ID",
       publishCoworkerIdTooltip: "The Coworker that processes this request. Supports value resolvers.",
       userPrompt: "User prompt",
-      userPromptTooltip: "Free-text message for the chat. Required unless an expertise is used. Supports value resolvers.",
+      userPromptTooltip:
+        "Free-text message for the chat. Required unless an expertise is used. Use {{pv:variable}} or " +
+        "{{doc:/path}} to weave case data into the text, e.g. 'Assess {{doc:/question}} for urgency'.",
       expertiseId: "Expertise ID",
       expertiseIdTooltip: "Optional: expertise for structured processing. Supports value resolvers.",
+      documentResourceId: "Document",
+      documentResourceIdTooltip:
+        "Optional: the Valtimo resource id of a file to send along with the question, " +
+        "usually pv:resourceId. Maximum 10 MB (configurable).",
       input: "Input",
       inputTooltip: "Optional JSON input for expertise processing. Supports value resolvers.",
       receiveEventTypeTooltip: "The Coworker event this step reacts to.",
+      resultMappings: "Process the answer",
+      resultMappingsTooltip:
+        "Optional: take fields out of a JSON answer and put them in a process variable or the case document. " +
+        "Only works when the CoWorker answers in JSON — best arranged with a response schema on the CoWorker " +
+        "itself, otherwise by asking for it in the prompt.",
+      resultMappingSource: "Field in answer (e.g. /nettoBedrag)",
+      resultMappingTarget: "Target (pv:name or doc:/path)",
+      resultMappingAddRow: "Add row",
     },
   },
 };

@@ -17,13 +17,18 @@
 package com.ritense.valtimoplugins.coworker
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.ritense.resource.domain.MetadataType
+import com.ritense.resource.service.TemporaryResourceStorageService
 import com.ritense.valtimo.contract.document.CaseDocumentResolver
 import com.ritense.valtimoplugins.coworker.domain.ChatRequestData
 import com.ritense.valtimoplugins.coworker.domain.ChatResponseData
 import com.ritense.valtimoplugins.coworker.plugin.CoworkerPlugin
+import com.ritense.valtimoplugins.coworker.service.CoworkerDocumentResolver
 import com.ritense.valtimoplugins.coworker.service.CoworkerProcessResumeService.Companion.VAR_CLOUD_EVENT_ID
+import com.ritense.valtimoplugins.coworker.service.PromptTemplateResolver
 import com.ritense.valtimoplugins.coworker.transport.RabbitMqCoworkerChatClient
 import com.ritense.valtimoplugins.coworker.transport.RestCoworkerChatClient
+import com.ritense.valueresolver.ValueResolverService
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
@@ -51,8 +56,23 @@ class CoworkerPluginTest : BaseTest() {
             whenever(it.resolveCaseDocumentId(any())).thenReturn(caseDocumentId)
         }
 
+    // A real PromptTemplateResolver over a mocked ValueResolverService, so the
+    // plugin's prompt-templating step is exercised end to end.
+    private val valueResolverService = mock<ValueResolverService>()
+    private val promptTemplateResolver = PromptTemplateResolver(valueResolverService, objectMapper)
+
+    private val documentStorageService = mock<TemporaryResourceStorageService>()
+    private val coworkerDocumentResolver = CoworkerDocumentResolver(documentStorageService, 1024)
+
     private val plugin =
-        CoworkerPlugin(restChatClient, rabbitChatClient, caseDocumentResolver, objectMapper).apply {
+        CoworkerPlugin(
+            restChatClient,
+            rabbitChatClient,
+            caseDocumentResolver,
+            promptTemplateResolver,
+            coworkerDocumentResolver,
+            objectMapper,
+        ).apply {
             source = "urn:nld:oin:00000000000000000001:systeem:coworker-plugin"
             requestQueue = "vcs.chat.in"
             replyQueue = "coworker-plugin.reply"
@@ -77,6 +97,7 @@ class CoworkerPluginTest : BaseTest() {
             userPrompt = "Summarize the case",
             expertiseId = null,
             input = null,
+            documentResourceId = null,
         )
 
         val requestCaptor = argumentCaptor<ChatRequestData>()
@@ -101,6 +122,7 @@ class CoworkerPluginTest : BaseTest() {
             userPrompt = null,
             expertiseId = "expertise-2",
             input = """{"key":"value"}""",
+            documentResourceId = null,
         )
 
         val requestCaptor = argumentCaptor<ChatRequestData>()
@@ -173,6 +195,98 @@ class CoworkerPluginTest : BaseTest() {
     */
 
     @Test
+    fun `fills prompt placeholders with case data before publishing`() {
+        whenever(rabbitChatClient.publish(any(), any(), any())).thenReturn("cloud-event-3")
+        whenever(valueResolverService.supportsValue(any())).thenReturn(true)
+        whenever(valueResolverService.resolveValues(eq("proc-1"), any<DelegateExecution>(), any()))
+            .thenReturn(mapOf("doc:/vraag" to "Mag ik een vergunning?"))
+
+        plugin.publishCoworker(
+            execution = execution(),
+            coworkerId = "cw-3",
+            userPrompt = "Beoordeel {{doc:/vraag}} op spoed",
+            expertiseId = null,
+            input = null,
+            documentResourceId = null,
+        )
+
+        val requestCaptor = argumentCaptor<ChatRequestData>()
+        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any())
+        assertThat(requestCaptor.firstValue.userPrompt)
+            .isEqualTo("Beoordeel Mag ik een vergunning? op spoed")
+    }
+
+    @Test
+    fun `attaches the document behind a resource id`() {
+        whenever(rabbitChatClient.publish(any(), any(), any())).thenReturn("cloud-event-5")
+        whenever(documentStorageService.getResourceContentAsInputStream("res-1"))
+            .thenReturn("factuur".byteInputStream())
+        whenever(documentStorageService.getResourceMetadata("res-1"))
+            .thenReturn(
+                mapOf(
+                    MetadataType.FILE_NAME.key to "factuur.pdf",
+                    MetadataType.CONTENT_TYPE.key to "application/pdf",
+                ),
+            )
+
+        plugin.publishCoworker(
+            execution = execution(),
+            coworkerId = "cw-5",
+            userPrompt = "Lees deze factuur",
+            expertiseId = null,
+            input = null,
+            documentResourceId = "res-1",
+        )
+
+        val requestCaptor = argumentCaptor<ChatRequestData>()
+        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any())
+        val documents = requestCaptor.firstValue.documents
+        assertThat(documents).hasSize(1)
+        assertThat(documents!!.first().fileName).isEqualTo("factuur.pdf")
+        assertThat(documents.first().contentType).isEqualTo("application/pdf")
+    }
+
+    @Test
+    fun `sends no documents when no resource id is configured`() {
+        whenever(rabbitChatClient.publish(any(), any(), any())).thenReturn("cloud-event-6")
+
+        plugin.publishCoworker(
+            execution = execution(),
+            coworkerId = "cw-6",
+            userPrompt = "Vat samen",
+            expertiseId = null,
+            input = null,
+            documentResourceId = null,
+        )
+
+        val requestCaptor = argumentCaptor<ChatRequestData>()
+        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any())
+        assertThat(requestCaptor.firstValue.documents).isNull()
+    }
+
+    @Test
+    fun `does not publish when a prompt placeholder cannot be resolved`() {
+        whenever(valueResolverService.supportsValue(any())).thenReturn(true)
+        whenever(valueResolverService.resolveValues(eq("proc-1"), any<DelegateExecution>(), any()))
+            .thenReturn(emptyMap())
+
+        val ex =
+            runCatching {
+                plugin.publishCoworker(
+                    execution = execution(),
+                    coworkerId = "cw-4",
+                    userPrompt = "Beoordeel {{doc:/onbekend}}",
+                    expertiseId = null,
+                    input = null,
+                    documentResourceId = null,
+                )
+            }.exceptionOrNull()
+
+        assertThat(ex).isInstanceOf(IllegalArgumentException::class.java)
+        verify(rabbitChatClient, never()).publish(any(), any(), any())
+    }
+
+    @Test
     fun `rejects a request without prompt or expertise input`() {
         val ex =
             runCatching {
@@ -182,6 +296,7 @@ class CoworkerPluginTest : BaseTest() {
                     userPrompt = null,
                     expertiseId = null,
                     input = null,
+                    documentResourceId = null,
                 )
             }.exceptionOrNull()
 
@@ -198,6 +313,7 @@ class CoworkerPluginTest : BaseTest() {
                     userPrompt = "Summarize the case",
                     expertiseId = null,
                     input = null,
+                    documentResourceId = null,
                 )
             }.exceptionOrNull()
 

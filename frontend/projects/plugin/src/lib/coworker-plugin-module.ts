@@ -22,7 +22,13 @@ import {PublishCoworkerConfigurationComponent} from './components/publish-cowork
 import {ReceiveCoworkerConfigurationComponent} from './components/receive-coworker/receive-coworker-configuration.component';
 import {CommonModule} from '@angular/common';
 import {PluginTranslatePipeModule} from '@valtimo/plugin';
-import {FormModule, InputModule, ParagraphModule, SelectModule} from '@valtimo/components';
+import {
+  CarbonMultiInputModule,
+  FormModule,
+  InputModule,
+  ParagraphModule,
+  SelectModule,
+} from '@valtimo/components';
 
 @NgModule({
   declarations: [
@@ -30,7 +36,15 @@ import {FormModule, InputModule, ParagraphModule, SelectModule} from '@valtimo/c
     PublishCoworkerConfigurationComponent,
     ReceiveCoworkerConfigurationComponent,
   ],
-  imports: [CommonModule, PluginTranslatePipeModule, FormModule, InputModule, ParagraphModule, SelectModule],
+  imports: [
+    CommonModule,
+    PluginTranslatePipeModule,
+    CarbonMultiInputModule,
+    FormModule,
+    InputModule,
+    ParagraphModule,
+    SelectModule,
+  ],
   exports: [
     CoworkerConfigurationComponent,
     PublishCoworkerConfigurationComponent,
