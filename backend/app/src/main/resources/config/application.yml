@@ -116,12 +116,6 @@ valtimo:
     accepted-packages:
       - com.ritense
   includeDocumentContentInResponse: true
-  coworker:
-    # Plugin's own reply queue; must match the plugin configuration's replyQueue.
-    reply-queue: coworker-plugin.reply
-    # Retry cadence for replies that arrived before their process was waiting.
-    # Local dev: retry every minute (production default is hourly "0 0 * * * *").
-    retry-cron: "0 * * * * *"
 
 spring-actuator:
   username: admin

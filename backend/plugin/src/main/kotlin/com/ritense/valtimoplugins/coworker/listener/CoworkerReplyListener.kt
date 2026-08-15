@@ -22,17 +22,21 @@ import com.ritense.valtimoplugins.coworker.repository.CoworkerFailedEventReposit
 import com.ritense.valtimoplugins.coworker.service.CoworkerResponseProcessor
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.amqp.core.Message
-import org.springframework.amqp.rabbit.annotation.RabbitListener
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.nio.charset.StandardCharsets
 
 /**
- * Listens on the plugin's own reply queue for CoWorker `chat-response` /
- * `chat-error` events. Delegates parsing + correlation + resume to
+ * Handles a CoWorker `chat-response` / `chat-error` that arrived on a plugin
+ * configuration's reply queue. Delegates parsing + correlation + resume to
  * [CoworkerResponseProcessor]; a valid reply that has no waiting activity yet is
  * stored in `coworker_failed_event` for the scheduled retry
  * ([com.ritense.valtimoplugins.coworker.service.CoworkerFailedEventRetryService]).
+ *
+ * Which queues are consumed, and over which broker connection, is decided per plugin
+ * configuration by
+ * [com.ritense.valtimoplugins.coworker.listener.CoworkerReplyListenerManager] — this
+ * class only handles a message once it has been delivered.
  *
  * Reads raw bytes so the payload is parsed as plain JSON regardless of the
  * container's message converter — matching the server's wire format.
@@ -43,7 +47,6 @@ open class CoworkerReplyListener(
 ) {
     @RunWithoutAuthorization
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    @RabbitListener(queues = ["\${valtimo.coworker.reply-queue:coworker-plugin.reply}"])
     open fun onReply(message: Message) {
         val raw = String(message.body, StandardCharsets.UTF_8)
         logger.debug { "Received on coworker reply queue: ${raw.take(200)}" }

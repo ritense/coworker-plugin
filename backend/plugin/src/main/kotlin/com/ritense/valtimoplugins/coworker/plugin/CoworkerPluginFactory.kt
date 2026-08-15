@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.ritense.plugin.PluginFactory
 import com.ritense.plugin.service.PluginService
 import com.ritense.valtimo.contract.document.CaseDocumentResolver
+import com.ritense.valtimoplugins.coworker.listener.CoworkerReplyListenerManager
 import com.ritense.valtimoplugins.coworker.service.CoworkerDocumentResolver
 import com.ritense.valtimoplugins.coworker.service.PromptTemplateResolver
 import com.ritense.valtimoplugins.coworker.transport.RabbitMqCoworkerChatClient
@@ -32,6 +33,7 @@ open class CoworkerPluginFactory(
     private val caseDocumentResolver: CaseDocumentResolver,
     private val promptTemplateResolver: PromptTemplateResolver,
     private val coworkerDocumentResolver: CoworkerDocumentResolver,
+    private val replyListenerManager: CoworkerReplyListenerManager,
     private val objectMapper: ObjectMapper,
 ) : PluginFactory<CoworkerPlugin>(pluginService) {
     override fun create(): CoworkerPlugin =
@@ -41,6 +43,7 @@ open class CoworkerPluginFactory(
             caseDocumentResolver,
             promptTemplateResolver,
             coworkerDocumentResolver,
+            replyListenerManager,
             objectMapper,
         )
 }

@@ -18,3 +18,6 @@ Eerste release
 
 ## 0.2.0
 Value resolvers for receive process link
+
+## 0.3.0
+Support for amqps and username/password authentication

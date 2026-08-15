@@ -17,6 +17,7 @@
 package com.ritense.valtimoplugins.coworker.autoconfiguration
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.ritense.plugin.repository.PluginConfigurationRepository
 import com.ritense.plugin.service.PluginService
 import com.ritense.processlink.repository.ValtimoPluginProcessLinkRepository
 import com.ritense.resource.service.TemporaryResourceStorageService
@@ -24,6 +25,7 @@ import com.ritense.valtimo.contract.config.LiquibaseMasterChangeLogLocation
 import com.ritense.valtimo.contract.document.CaseDocumentResolver
 import com.ritense.valtimoplugins.coworker.domain.ProcessedCoworker
 import com.ritense.valtimoplugins.coworker.listener.CoworkerReplyListener
+import com.ritense.valtimoplugins.coworker.listener.CoworkerReplyListenerManager
 import com.ritense.valtimoplugins.coworker.plugin.CoworkerPluginFactory
 import com.ritense.valtimoplugins.coworker.repository.CoworkerFailedEventRepository
 import com.ritense.valtimoplugins.coworker.repository.ProcessedCoworkerRepository
@@ -35,18 +37,14 @@ import com.ritense.valtimoplugins.coworker.service.CoworkerProcessResumeService
 import com.ritense.valtimoplugins.coworker.service.CoworkerResponseProcessor
 import com.ritense.valtimoplugins.coworker.service.CoworkerResultMapper
 import com.ritense.valtimoplugins.coworker.service.PromptTemplateResolver
+import com.ritense.valtimoplugins.coworker.transport.CoworkerConnectionFactoryProvider
 import com.ritense.valtimoplugins.coworker.transport.RabbitMqCoworkerChatClient
 import com.ritense.valtimoplugins.coworker.transport.RestCoworkerChatClient
 import com.ritense.valtimoplugins.coworker.web.rest.CoworkerManagementResource
 import com.ritense.valueresolver.ValueResolverService
 import org.operaton.bpm.engine.RepositoryService
 import org.operaton.bpm.engine.RuntimeService
-import org.springframework.amqp.core.Queue
-import org.springframework.amqp.core.QueueBuilder
 import org.springframework.amqp.rabbit.connection.ConnectionFactory
-import org.springframework.amqp.rabbit.core.RabbitTemplate
-import org.springframework.amqp.support.converter.SimpleMessageConverter
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -64,20 +62,15 @@ import org.springframework.web.client.RestClient
 @EnableJpaRepositories(basePackageClasses = [ProcessedCoworkerRepository::class])
 @EntityScan(basePackageClasses = [ProcessedCoworker::class])
 class CoworkerAutoConfiguration {
-    @Bean("coworkerRabbitTemplate")
-    @ConditionalOnMissingBean(name = ["coworkerRabbitTemplate"])
-    fun coworkerRabbitTemplate(connectionFactory: ConnectionFactory): RabbitTemplate =
-        RabbitTemplate(connectionFactory).apply {
-            // SimpleMessageConverter keeps our already-serialized JSON bytes intact
-            // (no double-encoding); mirrors coworker-client's RabbitMqConfig.
-            messageConverter = SimpleMessageConverter()
-        }
+    // The reply queue is no longer declared from a static application property: which
+    // queue to declare and consume now comes from each plugin configuration's
+    // `replyQueue`, and CoworkerReplyListenerManager declares it durably on that
+    // configuration's own connection when it starts listening.
 
-    @Bean("coworkerReplyQueue")
-    @ConditionalOnMissingBean(name = ["coworkerReplyQueue"])
-    fun coworkerReplyQueue(
-        @Value("\${valtimo.coworker.reply-queue:coworker-plugin.reply}") replyQueue: String,
-    ): Queue = QueueBuilder.durable(replyQueue).build()
+    @Bean
+    @ConditionalOnMissingBean(CoworkerConnectionFactoryProvider::class)
+    fun coworkerConnectionFactoryProvider(connectionFactory: ConnectionFactory): CoworkerConnectionFactoryProvider =
+        CoworkerConnectionFactoryProvider(connectionFactory)
 
     @Bean
     @ConditionalOnMissingBean(RestCoworkerChatClient::class)
@@ -87,9 +80,9 @@ class CoworkerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(RabbitMqCoworkerChatClient::class)
     fun rabbitMqCoworkerChatClient(
-        @Qualifier("coworkerRabbitTemplate") coworkerRabbitTemplate: RabbitTemplate,
+        coworkerConnectionFactoryProvider: CoworkerConnectionFactoryProvider,
         objectMapper: ObjectMapper,
-    ): RabbitMqCoworkerChatClient = RabbitMqCoworkerChatClient(coworkerRabbitTemplate, objectMapper)
+    ): RabbitMqCoworkerChatClient = RabbitMqCoworkerChatClient(coworkerConnectionFactoryProvider, objectMapper)
 
     @Bean
     @ConditionalOnMissingBean(PromptTemplateResolver::class)
@@ -114,6 +107,7 @@ class CoworkerAutoConfiguration {
         caseDocumentResolver: CaseDocumentResolver,
         promptTemplateResolver: PromptTemplateResolver,
         coworkerDocumentResolver: CoworkerDocumentResolver,
+        coworkerReplyListenerManager: CoworkerReplyListenerManager,
         objectMapper: ObjectMapper,
     ): CoworkerPluginFactory =
         CoworkerPluginFactory(
@@ -123,6 +117,7 @@ class CoworkerAutoConfiguration {
             caseDocumentResolver,
             promptTemplateResolver,
             coworkerDocumentResolver,
+            coworkerReplyListenerManager,
             objectMapper,
         )
 
@@ -188,6 +183,23 @@ class CoworkerAutoConfiguration {
         CoworkerReplyListener(
             processor,
             failedEventRepository,
+        )
+
+    @Bean
+    @ConditionalOnMissingBean(CoworkerReplyListenerManager::class)
+    fun coworkerReplyListenerManager(
+        pluginConfigurationRepository: PluginConfigurationRepository,
+        coworkerConnectionFactoryProvider: CoworkerConnectionFactoryProvider,
+        coworkerReplyListener: CoworkerReplyListener,
+        // Honours the standard Spring AMQP switch, so a deployment without a broker
+        // (the integration-test harness, for one) starts no reply listeners at all.
+        @Value("\${spring.rabbitmq.listener.simple.auto-startup:true}") listenersEnabled: Boolean,
+    ): CoworkerReplyListenerManager =
+        CoworkerReplyListenerManager(
+            pluginConfigurationRepository,
+            coworkerConnectionFactoryProvider,
+            coworkerReplyListener,
+            listenersEnabled,
         )
 
     @Bean

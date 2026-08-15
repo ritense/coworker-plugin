@@ -15,6 +15,80 @@ The plugin speaks the CoWorker contract over RabbitMQ:
   CloudEvents 1.1) — no CloudEvents SDK (that is a later version). Used by
   `publish-coworker`; the reply arrives on the plugin's own reply queue.
 
+### Broker connection
+
+Each plugin configuration carries its own broker connection (`rabbitMqHost`,
+`rabbitMqPort`, `rabbitMqVirtualHost`, `rabbitMqUsername`, `rabbitMqPassword`,
+`rabbitMqSslEnabled`). Every field is optional and falls back to the host app's
+`spring.rabbitmq.*`, so a configuration that fills in only a username and password
+keeps the application's host and port, and a configuration that fills in nothing
+behaves exactly as before.
+
+`CoworkerConnectionFactoryProvider` resolves these to a `ConnectionFactory`: no
+overrides means the application's own factory is reused, otherwise a
+`CachingConnectionFactory` is created and cached per distinct set of settings, so
+configurations pointing at the same broker with the same credentials share one
+connection. `rabbitMqPassword` is stored `secret = true` (encrypted at rest,
+never returned to the frontend) and is masked in logs.
+
+> Spring's `ConnectionFactory` interface does not expose the password it was built
+> with, so it cannot be inherited. A configuration that sets `rabbitMqUsername` must
+> set `rabbitMqPassword` too.
+
+#### amqp vs amqps
+
+**TLS is never implied by the port.** In the RabbitMQ client,
+`ConnectionFactory.isSSL()` is `getSocketFactory() instanceof SSLSocketFactory ||
+sslContextFactory != null` — the transport depends solely on the socket factory, and
+`portOrDefault(port, ssl)` runs the other way round: the TLS setting picks the
+*default* port (5671 vs 5672), never the reverse. Setting `rabbitMqPort` to 5671 on its
+own therefore opens a plaintext socket against a TLS listener, which stalls until the
+connection timeout rather than failing with a TLS error.
+
+The scheme itself only exists a layer up: Spring Boot's `RabbitProperties.Address`
+parses an `amqps://` prefix into `secureConnection = true`, `spring.rabbitmq.ssl.enabled`
+is the explicit switch, and `RabbitConnectionFactoryBeanConfigurer` turns either into
+`setUseSSL(true)` plus the SSL bundle. Below that, a `ConnectionFactory` has no notion
+of a URI scheme.
+
+The provider therefore does two things:
+
+- It builds each per-configuration factory from a `clone()` of the application's
+  underlying `com.rabbitmq.client.ConnectionFactory`, so the app's TLS setup (and its
+  timeouts and SASL config) is **inherited**. Without this, filling in only a username
+  on a `spring.rabbitmq.ssl.enabled=true` deployment would silently drop to plaintext
+  and send the credentials in the clear. The clone is shallow, which is what is wanted —
+  the `SSLSocketFactory` is shared, not rebuilt.
+- `rabbitMqSslEnabled` forces the transport for a broker whose transport differs from
+  the app's. It uses the JVM default `SSLContext`, so the platform trust store applies
+  and certificates are actually validated, with `enableHostnameVerification()` on —
+  deliberately not the no-argument `useSslProtocol()`, which trusts every certificate
+  presented and is documented as development-only. When `rabbitMqSslEnabled` is set and
+  `rabbitMqPort` is left empty, the port is reset to `USE_DEFAULT_PORT` so the client
+  resolves 5671 or 5672 to match, instead of keeping the port inherited from the app.
+
+### Reply listeners
+
+The reply side is driven by the same configurations rather than a static
+`@RabbitListener`, because neither the queue name nor the credentials are known until
+a configuration has been saved. `CoworkerReplyListenerManager` keeps one
+`SimpleMessageListenerContainer` per distinct (`replyQueue`, connection) pair found
+across the stored CoWorker configurations, and declares each queue durably on its own
+connection. It re-synchronises:
+
+- on `ApplicationReadyEvent`;
+- when a configuration is saved — via `CoworkerPlugin`'s `@PluginEvent(CREATE, UPDATE)`,
+  which Valtimo also invokes for autodeployed configurations (unlike
+  `PluginConfigurationCreatedEvent`, which autodeployment does not publish);
+- when one is deleted — via `PluginConfigurationDeletedEvent`, which fires *after* the
+  row is gone (the plugin's own DELETE event runs before it, and would still see the
+  configuration being dropped);
+- periodically (`valtimo.coworker.listener-refresh-interval`, 5 minutes by default) as
+  a safety net for a rolled-back save or a configuration created on another node.
+
+Setting `spring.rabbitmq.listener.simple.auto-startup: false` suppresses all CoWorker
+reply listeners, which is how the integration-test harness runs without a broker.
+
 ## `caseId` resolution
 
 For `publish-coworker` the request's `caseId` is derived from the process's document,
@@ -65,17 +139,23 @@ known-`type` filter, tolerates a blank `type`, and deduplicates by CloudEvent id
 
 ## Application configuration
 
-The host app provides the broker connection (`spring.rabbitmq.*`) and:
+The host app provides the fallback broker connection (`spring.rabbitmq.*`, used for any
+field a plugin configuration leaves empty) and:
 
 | Property                       | Default                 | Description                                     |
 |--------------------------------|-------------------------|-------------------------------------------------|
-| `valtimo.coworker.reply-queue` | `coworker-plugin.reply` | Reply queue name (declared durable on startup). |
 | `valtimo.coworker.retry-cron`  | `0 0 * * * *`           | Cron for retrying unmatched replies.            |
+| `valtimo.coworker.listener-refresh-interval` | `PT5M`    | How often the reply listeners are reconciled against the stored plugin configurations. |
 | `valtimo.coworker.max-document-size` | `10MB`            | Maximum size of a document sent along with a chat-request. The file is base64-encoded into the CloudEvent, so it is ~33% larger on the wire and must fit within the broker's message size limit. |
 
-The reply queue must exist on the broker (the plugin declares it as a durable `Queue`
-bean; the sandbox app also declares it in
-`backend/app/imports/plugin-rabbitmq/definitions.json` alongside `vcs.chat.in`).
+The reply queue name comes from the plugin configuration's `replyQueue`; the manager
+declares it durably when it starts listening, and the sandbox app also declares it in
+`backend/app/imports/plugin-rabbitmq/definitions.json` alongside `vcs.chat.in`.
+
+> Before per-configuration connections existed, the consumed queue was set by
+> `valtimo.coworker.reply-queue` and had to be kept in step with each configuration's
+> `replyQueue`. That property is gone — the plugin configuration is now the only place
+> the reply queue is named.
 
 ## Database
 

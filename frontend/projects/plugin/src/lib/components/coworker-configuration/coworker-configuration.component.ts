@@ -23,6 +23,7 @@ import { CoworkerConfig } from "../../models";
   standalone: false,
   selector: "valtimo-coworker-configuration",
   templateUrl: "./coworker-configuration.component.html",
+  styleUrls: ["./coworker-configuration.component.scss"],
 })
 export class CoworkerConfigurationComponent implements PluginConfigurationComponent, OnInit, OnDestroy {
   @Input() save$!: Observable<void>;
@@ -50,6 +51,10 @@ export class CoworkerConfigurationComponent implements PluginConfigurationCompon
   }
 
   private handleValid(formValue: CoworkerConfig): void {
+    // The RabbitMQ fields are all optional and deliberately not validated here: like
+    // every secret, the password is not returned when an existing configuration is
+    // edited, so requiring it alongside the username would make such a configuration
+    // impossible to save again.
     const valid =
       !!formValue.configurationTitle &&
       !!formValue.source &&
