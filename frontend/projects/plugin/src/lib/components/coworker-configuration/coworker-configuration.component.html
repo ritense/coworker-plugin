@@ -14,6 +14,11 @@
   ~ limitations under the License.
   -->
 
+<!--
+  The section headings are siblings of the inputs, never wrappers: v-form collects its
+  fields with @ContentChildren(InputComponent), which defaults to descendants: false, so
+  an input nested inside a <div> would silently drop out of the submitted configuration.
+-->
 <v-form
   (valueChange)="formValueChange($event)"
   *ngIf="{
@@ -33,15 +38,68 @@
     placeholder="Coworker Plugin"
   >
   </v-input>
+
+  <h5 class="coworker-configuration__section">
+    {{ 'rabbitMqSection' | pluginTranslate: pluginId | async }}
+  </h5>
+  <p class="coworker-configuration__section-description">
+    {{ 'rabbitMqSectionDescription' | pluginTranslate: pluginId | async }}
+  </p>
   <v-input
-    name="source"
-    [title]="'source' | pluginTranslate: pluginId | async"
+    name="rabbitMqHost"
+    [title]="'rabbitMqHost' | pluginTranslate: pluginId | async"
     [margin]="true"
     [disabled]="obs.disabled"
-    [defaultValue]="obs.prefill?.source"
-    [required]="true"
-    [tooltip]="'sourceTooltip' | pluginTranslate: pluginId | async"
-    placeholder="urn:nld:oin:00000000000000000001:systeem:coworker-plugin"
+    [defaultValue]="obs.prefill?.rabbitMqHost"
+    [tooltip]="'rabbitMqHostTooltip' | pluginTranslate: pluginId | async"
+    placeholder="rabbitmq.example.nl"
+  ></v-input>
+  <v-input
+    type="checkbox"
+    name="rabbitMqSslEnabled"
+    [title]="'rabbitMqSslEnabled' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.rabbitMqSslEnabled"
+    [tooltip]="'rabbitMqSslEnabledTooltip' | pluginTranslate: pluginId | async"
+  ></v-input>
+  <v-input
+    type="number"
+    name="rabbitMqPort"
+    [title]="'rabbitMqPort' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.rabbitMqPort"
+    [tooltip]="'rabbitMqPortTooltip' | pluginTranslate: pluginId | async"
+    [min]="1"
+    [widthPx]="350"
+    placeholder="5672"
+  ></v-input>
+  <v-input
+    name="rabbitMqVirtualHost"
+    [title]="'rabbitMqVirtualHost' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.rabbitMqVirtualHost"
+    [tooltip]="'rabbitMqVirtualHostTooltip' | pluginTranslate: pluginId | async"
+    placeholder="/"
+  ></v-input>
+  <v-input
+    name="rabbitMqUsername"
+    [title]="'rabbitMqUsername' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.rabbitMqUsername"
+    [tooltip]="'rabbitMqUsernameTooltip' | pluginTranslate: pluginId | async"
+  ></v-input>
+  <v-input
+    type="password"
+    name="rabbitMqPassword"
+    [title]="'rabbitMqPassword' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.rabbitMqPassword"
+    [tooltip]="'rabbitMqPasswordTooltip' | pluginTranslate: pluginId | async"
   ></v-input>
   <v-input
     name="requestQueue"
@@ -63,6 +121,23 @@
     [tooltip]="'replyQueueTooltip' | pluginTranslate: pluginId | async"
     placeholder="coworker-plugin.reply"
   ></v-input>
+  <v-input
+    name="source"
+    [title]="'source' | pluginTranslate: pluginId | async"
+    [margin]="true"
+    [disabled]="obs.disabled"
+    [defaultValue]="obs.prefill?.source"
+    [required]="true"
+    [tooltip]="'sourceTooltip' | pluginTranslate: pluginId | async"
+    placeholder="urn:nld:oin:00000000000000000001:systeem:coworker-plugin"
+  ></v-input>
+
+  <h5 class="coworker-configuration__section">
+    {{ 'coworkerApiSection' | pluginTranslate: pluginId | async }}
+  </h5>
+  <p class="coworker-configuration__section-description">
+    {{ 'coworkerApiSectionDescription' | pluginTranslate: pluginId | async }}
+  </p>
   <v-input
     name="coworkerUrl"
     [title]="'coworkerUrl' | pluginTranslate: pluginId | async"

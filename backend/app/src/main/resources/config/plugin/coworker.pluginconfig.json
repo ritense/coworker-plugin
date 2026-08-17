@@ -9,7 +9,12 @@
             "replyQueue": "coworker-plugin.reply",
             "coworkerUrl": "http://localhost:8082",
             "coworkerUsername": "admin",
-            "coworkerPassword": "admin"
+            "coworkerPassword": "admin",
+            "rabbitMqHost": "localhost",
+            "rabbitMqPort": 5672,
+            "rabbitMqVirtualHost": "/",
+            "rabbitMqUsername": "guest",
+            "rabbitMqPassword": "guest"
         }
     }
 ]

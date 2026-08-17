@@ -8,17 +8,51 @@ Ask the CoWorker a question with **Ask CoWorker** and receive the answer later w
 
 ## Configuration
 
-Create a plugin configuration and fill in:
+The configuration screen is split into two groups, because the plugin can talk to two
+different systems: **RabbitMQ** carries all the chat traffic, and the **CoWorker REST
+API** backs the REST-based features. Each has its own address and its own credentials —
+they are not interchangeable, which is why every field names the system it belongs to.
 
 | Field              | Required | Description                                                                                                 |
 |--------------------|----------|-------------------------------------------------------------------------------------------------------------|
 | Configuration name | yes      | A name to recognise this configuration elsewhere in the app.                                                |
-| Source (URN)       | yes      | Identifies this system to the CoWorker server, e.g. `urn:nld:oin:<OIN>:systeem:coworker-plugin`.            |
-| Request queue      | yes      | Where questions are sent (default `vcs.chat.in`). Used by **Ask CoWorker**.                                 |
-| Reply queue        | yes      | Where answers come back. Used by **Await CoWorker reply**.                                                  |
-| Coworker URL       | no       | Address of the CoWorker server.                                                                             |
-| Username           | no       | Login name for the CoWorker server (if it requires one).                                                    |
-| Password           | no       | Password for the CoWorker server (stored securely).                                                         |
+
+### RabbitMQ — messaging
+
+| Field                  | Required | Description                                                                                             |
+|------------------------|----------|---------------------------------------------------------------------------------------------------------|
+| RabbitMQ host          | no       | The message broker's host. Leave empty to use the application's own setting.                            |
+| Use TLS (amqps)        | no       | Connect over TLS instead of plain amqp. Leave off to follow the application's own setting.               |
+| RabbitMQ port          | no       | The broker's port. Leave empty to use 5671 (with TLS) or 5672 (without) automatically.                    |
+| RabbitMQ virtual host  | no       | The virtual host on the broker (usually `/`). Leave empty to use the application's own setting.          |
+| RabbitMQ username      | no       | Login name for the **broker**, used for both sending questions and receiving answers.                    |
+| RabbitMQ password      | no       | Password for the **broker** (stored securely). Fill this in whenever you fill in a RabbitMQ username.     |
+| RabbitMQ request queue | yes      | Where questions are sent (default `vcs.chat.in`). Used by **Ask CoWorker**.                              |
+| RabbitMQ reply queue   | yes      | Where answers come back. Used by **Await CoWorker reply**.                                               |
+| RabbitMQ source (URN)  | yes      | How this system identifies itself on each message, e.g. `urn:nld:oin:<OIN>:systeem:coworker-plugin`.      |
+
+The connection fields (host through password) are all optional: leave them empty and the
+plugin uses the broker connection the application itself is configured with. Fill any of
+them in and this configuration talks to that broker instead — for both the request queue
+and the reply queue. Changes take effect without restarting the application.
+
+### CoWorker server — REST API
+
+| Field                 | Required | Description                                                                          |
+|-----------------------|----------|--------------------------------------------------------------------------------------|
+| CoWorker API URL      | no       | Address of the CoWorker server's REST API — not of RabbitMQ.                          |
+| CoWorker API username | no       | Login name for the **CoWorker server** (if it requires one).                          |
+| CoWorker API password | no       | Password for the **CoWorker server** (stored securely).                               |
+
+Chat traffic never goes over the REST API. In this version the only consumer of these
+fields is the "Coworker" dropdown of the REST chat action, which is disabled (see
+[technical-reference.md](technical-reference.md)) — so this whole group can be left
+empty, and you type the Coworker ID by hand in **Ask CoWorker**.
+
+> **Setting the port to 5671 does not switch on TLS.** The port is just a number; tick
+> **Use TLS (amqps)** to actually get an encrypted connection. If the application itself
+> already connects over TLS, that carries over automatically — you only need the tick box
+> when this broker differs from the application's.
 
 ## Actions
 

@@ -20,13 +20,17 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.ritense.valtimoplugins.coworker.domain.ChatRequestData
 import com.ritense.valtimoplugins.coworker.domain.CoworkerEventType
+import com.ritense.valtimoplugins.coworker.domain.CoworkerRabbitMqProperties
+import com.ritense.valtimoplugins.coworker.transport.CoworkerConnectionFactoryProvider
 import com.ritense.valtimoplugins.coworker.transport.RabbitMqCoworkerChatClient
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.springframework.amqp.core.Message
 import org.springframework.amqp.rabbit.core.RabbitTemplate
 import java.nio.charset.StandardCharsets
@@ -34,10 +38,16 @@ import java.nio.charset.StandardCharsets
 class RabbitMqCoworkerChatClientTest : BaseTest() {
     private val objectMapper = jacksonObjectMapper()
 
+    /** A provider that always hands back [rabbitTemplate], whatever the connection. */
+    private fun providerFor(rabbitTemplate: RabbitTemplate): CoworkerConnectionFactoryProvider =
+        mock<CoworkerConnectionFactoryProvider>().also {
+            whenever(it.rabbitTemplate(any())).thenReturn(rabbitTemplate)
+        }
+
     @Test
     fun `publish sends a chat-request cloud event as raw json with the correct envelope`() {
         val rabbitTemplate = mock<RabbitTemplate>()
-        val client = RabbitMqCoworkerChatClient(rabbitTemplate, objectMapper)
+        val client = RabbitMqCoworkerChatClient(providerFor(rabbitTemplate), objectMapper)
 
         val request =
             ChatRequestData(
@@ -83,7 +93,7 @@ class RabbitMqCoworkerChatClientTest : BaseTest() {
     @Test
     fun `publish sends to the provided routing key and returns the envelope id`() {
         val rabbitTemplate = mock<RabbitTemplate>()
-        val client = RabbitMqCoworkerChatClient(rabbitTemplate, objectMapper)
+        val client = RabbitMqCoworkerChatClient(providerFor(rabbitTemplate), objectMapper)
 
         val request = ChatRequestData(coworkerId = "c", caseId = "case-1", userPrompt = "hi", replyTo = "reply")
 
@@ -94,6 +104,47 @@ class RabbitMqCoworkerChatClientTest : BaseTest() {
         val body = objectMapper.readTree(String(messageCaptor.firstValue.body, StandardCharsets.UTF_8))
         assertThat(body["id"].asText()).isEqualTo(cloudEventId)
         assertThat(body["source"].asText()).isEqualTo("urn:test")
+    }
+
+    @Test
+    fun `publish uses the connection belonging to the plugin configuration`() {
+        val rabbitTemplate = mock<RabbitTemplate>()
+        val provider = providerFor(rabbitTemplate)
+        val client = RabbitMqCoworkerChatClient(provider, objectMapper)
+
+        val connection =
+            CoworkerRabbitMqProperties.of(
+                host = "broker.example.nl",
+                port = 5671,
+                virtualHost = "/coworker",
+                username = "coworker-user",
+                password = "s3cret",
+            )
+
+        client.publish(
+            request = ChatRequestData(coworkerId = "c", caseId = "case-1", userPrompt = "hi", replyTo = "reply"),
+            source = "urn:test",
+            requestRoutingKey = "vcs.chat.in",
+            rabbitMqProperties = connection,
+        )
+
+        verify(provider).rabbitTemplate(eq(connection))
+        verify(rabbitTemplate).send(eq("vcs.chat.in"), any())
+    }
+
+    @Test
+    fun `publish falls back to the application connection when no rabbitmq fields are set`() {
+        val rabbitTemplate = mock<RabbitTemplate>()
+        val provider = providerFor(rabbitTemplate)
+        val client = RabbitMqCoworkerChatClient(provider, objectMapper)
+
+        client.publish(
+            request = ChatRequestData(coworkerId = "c", caseId = "case-1", userPrompt = "hi", replyTo = "reply"),
+            source = "urn:test",
+            requestRoutingKey = "vcs.chat.in",
+        )
+
+        verify(provider).rabbitTemplate(eq(CoworkerRabbitMqProperties.APPLICATION_DEFAULTS))
     }
 
     @Test

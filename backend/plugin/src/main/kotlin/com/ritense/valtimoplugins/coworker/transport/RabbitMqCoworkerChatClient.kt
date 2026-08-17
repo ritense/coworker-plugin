@@ -19,6 +19,7 @@ package com.ritense.valtimoplugins.coworker.transport
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.ritense.valtimoplugins.coworker.domain.ChatRequestCloudEvent
 import com.ritense.valtimoplugins.coworker.domain.ChatRequestData
+import com.ritense.valtimoplugins.coworker.domain.CoworkerRabbitMqProperties
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.amqp.core.Message
 import org.springframework.amqp.core.MessageProperties
@@ -37,9 +38,13 @@ import java.util.UUID
  * server consumes today and to avoid double-encoding by any
  * `Jackson2JsonMessageConverter` on the [RabbitTemplate] — mirrors
  * `coworker-client`'s `CoworkerRequestPublisher`.
+ *
+ * The broker is resolved per plugin configuration through
+ * [CoworkerConnectionFactoryProvider], so each configuration publishes with its own
+ * credentials.
  */
 open class RabbitMqCoworkerChatClient(
-    private val rabbitTemplate: RabbitTemplate,
+    private val connectionFactoryProvider: CoworkerConnectionFactoryProvider,
     private val objectMapper: ObjectMapper,
 ) {
     /**
@@ -48,11 +53,14 @@ open class RabbitMqCoworkerChatClient(
      * @param request the payload; its `replyTo` must be the caller's own reply queue.
      * @param source a `urn:`-prefixed CloudEvent source (NL GOV URN).
      * @param requestRoutingKey where the request is sent (e.g. `vcs.chat.in`).
+     * @param rabbitMqProperties the configuration's broker connection; empty fields
+     *   fall back to the host app's `spring.rabbitmq.*`.
      */
     open fun publish(
         request: ChatRequestData,
         source: String,
         requestRoutingKey: String,
+        rabbitMqProperties: CoworkerRabbitMqProperties = CoworkerRabbitMqProperties.APPLICATION_DEFAULTS,
     ): String {
         val cloudEventId = UUID.randomUUID().toString()
         val event =
@@ -73,7 +81,7 @@ open class RabbitMqCoworkerChatClient(
                 contentType = "application/json"
                 contentEncoding = "UTF-8"
             }
-        rabbitTemplate.send(
+        connectionFactoryProvider.rabbitTemplate(rabbitMqProperties).send(
             requestRoutingKey,
             Message(json.toByteArray(StandardCharsets.UTF_8), properties),
         )

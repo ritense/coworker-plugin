@@ -35,6 +35,15 @@ interface CoworkerConfig extends PluginConfigurationData {
   coworkerUrl?: string;
   coworkerUsername?: string;
   coworkerPassword?: string;
+  // Broker connection. All optional: an empty field falls back to the host
+  // application's own `spring.rabbitmq.*` setting.
+  rabbitMqHost?: string;
+  rabbitMqPort?: number;
+  rabbitMqVirtualHost?: string;
+  rabbitMqUsername?: string;
+  rabbitMqPassword?: string;
+  // Forces amqps on/off. The port alone never enables TLS.
+  rabbitMqSslEnabled?: boolean;
 }
 
 interface PublishCoworkerConfig {

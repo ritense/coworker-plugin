@@ -22,6 +22,7 @@ import com.ritense.resource.service.TemporaryResourceStorageService
 import com.ritense.valtimo.contract.document.CaseDocumentResolver
 import com.ritense.valtimoplugins.coworker.domain.ChatRequestData
 import com.ritense.valtimoplugins.coworker.domain.ChatResponseData
+import com.ritense.valtimoplugins.coworker.listener.CoworkerReplyListenerManager
 import com.ritense.valtimoplugins.coworker.plugin.CoworkerPlugin
 import com.ritense.valtimoplugins.coworker.service.CoworkerDocumentResolver
 import com.ritense.valtimoplugins.coworker.service.CoworkerProcessResumeService.Companion.VAR_CLOUD_EVENT_ID
@@ -64,6 +65,8 @@ class CoworkerPluginTest : BaseTest() {
     private val documentStorageService = mock<TemporaryResourceStorageService>()
     private val coworkerDocumentResolver = CoworkerDocumentResolver(documentStorageService, 1024)
 
+    private val replyListenerManager = mock<CoworkerReplyListenerManager>()
+
     private val plugin =
         CoworkerPlugin(
             restChatClient,
@@ -71,6 +74,7 @@ class CoworkerPluginTest : BaseTest() {
             caseDocumentResolver,
             promptTemplateResolver,
             coworkerDocumentResolver,
+            replyListenerManager,
             objectMapper,
         ).apply {
             source = "urn:nld:oin:00000000000000000001:systeem:coworker-plugin"
@@ -88,7 +92,7 @@ class CoworkerPluginTest : BaseTest() {
 
     @Test
     fun `sends a chat-request and stores the correlation variable`() {
-        whenever(rabbitChatClient.publish(any(), any(), any())).thenReturn("cloud-event-1")
+        whenever(rabbitChatClient.publish(any(), any(), any(), any())).thenReturn("cloud-event-1")
         val execution = execution()
 
         plugin.publishCoworker(
@@ -101,7 +105,7 @@ class CoworkerPluginTest : BaseTest() {
         )
 
         val requestCaptor = argumentCaptor<ChatRequestData>()
-        verify(rabbitChatClient).publish(requestCaptor.capture(), eq(plugin.source), eq("vcs.chat.in"))
+        verify(rabbitChatClient).publish(requestCaptor.capture(), eq(plugin.source), eq("vcs.chat.in"), any())
         val request = requestCaptor.firstValue
         assertThat(request.coworkerId).isEqualTo("cw-1")
         // caseId is the resolved case document id (from the execution's document).
@@ -114,7 +118,7 @@ class CoworkerPluginTest : BaseTest() {
 
     @Test
     fun `parses a JSON input string into a json node`() {
-        whenever(rabbitChatClient.publish(any(), any(), any())).thenReturn("cloud-event-2")
+        whenever(rabbitChatClient.publish(any(), any(), any(), any())).thenReturn("cloud-event-2")
 
         plugin.publishCoworker(
             execution = execution(),
@@ -126,7 +130,7 @@ class CoworkerPluginTest : BaseTest() {
         )
 
         val requestCaptor = argumentCaptor<ChatRequestData>()
-        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any())
+        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any(), any())
         val input = requestCaptor.firstValue.input
         assertThat(input).isNotNull
         assertThat(input!!["key"].asText()).isEqualTo("value")
@@ -159,7 +163,7 @@ class CoworkerPluginTest : BaseTest() {
         ).chat(requestCaptor.capture(), eq("https://coworker.example.nl"), eq("user"), eq("secret"))
         assertThat(requestCaptor.firstValue.coworkerId).isEqualTo("cw-1")
         // The service task never touches RabbitMQ.
-        verify(rabbitChatClient, never()).publish(any(), any(), any())
+        verify(rabbitChatClient, never()).publish(any(), any(), any(), any())
 
         val varsCaptor = argumentCaptor<Map<String, Any>>()
         verify(execution).setVariablesLocal(varsCaptor.capture())
@@ -196,7 +200,7 @@ class CoworkerPluginTest : BaseTest() {
 
     @Test
     fun `fills prompt placeholders with case data before publishing`() {
-        whenever(rabbitChatClient.publish(any(), any(), any())).thenReturn("cloud-event-3")
+        whenever(rabbitChatClient.publish(any(), any(), any(), any())).thenReturn("cloud-event-3")
         whenever(valueResolverService.supportsValue(any())).thenReturn(true)
         whenever(valueResolverService.resolveValues(eq("proc-1"), any<DelegateExecution>(), any()))
             .thenReturn(mapOf("doc:/vraag" to "Mag ik een vergunning?"))
@@ -211,14 +215,14 @@ class CoworkerPluginTest : BaseTest() {
         )
 
         val requestCaptor = argumentCaptor<ChatRequestData>()
-        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any())
+        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any(), any())
         assertThat(requestCaptor.firstValue.userPrompt)
             .isEqualTo("Beoordeel Mag ik een vergunning? op spoed")
     }
 
     @Test
     fun `attaches the document behind a resource id`() {
-        whenever(rabbitChatClient.publish(any(), any(), any())).thenReturn("cloud-event-5")
+        whenever(rabbitChatClient.publish(any(), any(), any(), any())).thenReturn("cloud-event-5")
         whenever(documentStorageService.getResourceContentAsInputStream("res-1"))
             .thenReturn("factuur".byteInputStream())
         whenever(documentStorageService.getResourceMetadata("res-1"))
@@ -239,7 +243,7 @@ class CoworkerPluginTest : BaseTest() {
         )
 
         val requestCaptor = argumentCaptor<ChatRequestData>()
-        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any())
+        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any(), any())
         val documents = requestCaptor.firstValue.documents
         assertThat(documents).hasSize(1)
         assertThat(documents!!.first().fileName).isEqualTo("factuur.pdf")
@@ -248,7 +252,7 @@ class CoworkerPluginTest : BaseTest() {
 
     @Test
     fun `sends no documents when no resource id is configured`() {
-        whenever(rabbitChatClient.publish(any(), any(), any())).thenReturn("cloud-event-6")
+        whenever(rabbitChatClient.publish(any(), any(), any(), any())).thenReturn("cloud-event-6")
 
         plugin.publishCoworker(
             execution = execution(),
@@ -260,7 +264,7 @@ class CoworkerPluginTest : BaseTest() {
         )
 
         val requestCaptor = argumentCaptor<ChatRequestData>()
-        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any())
+        verify(rabbitChatClient).publish(requestCaptor.capture(), any(), any(), any())
         assertThat(requestCaptor.firstValue.documents).isNull()
     }
 
@@ -283,7 +287,7 @@ class CoworkerPluginTest : BaseTest() {
             }.exceptionOrNull()
 
         assertThat(ex).isInstanceOf(IllegalArgumentException::class.java)
-        verify(rabbitChatClient, never()).publish(any(), any(), any())
+        verify(rabbitChatClient, never()).publish(any(), any(), any(), any())
     }
 
     @Test
