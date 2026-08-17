@@ -24,6 +24,16 @@ Each plugin configuration carries its own broker connection (`rabbitMqHost`,
 keeps the application's host and port, and a configuration that fills in nothing
 behaves exactly as before.
 
+The host app is **not** required to configure a broker of its own. A configuration
+that names its own broker is self-sufficient, which is what lets a CoWorker plugin be
+set up entirely through the Valtimo web interface without touching the application's
+`application.yml`. `CoworkerConnectionFactoryProvider` takes the application's
+`ConnectionFactory` as an optional dependency (`ObjectProvider.getIfAvailable()`), so
+an app without `spring.rabbitmq.*` — and therefore without a `ConnectionFactory` bean —
+starts normally. Only a configuration that leaves every field empty needs the
+application's connection, and it fails with an explanation naming the fields to fill
+in when there is none, at the point of use rather than at startup.
+
 `CoworkerConnectionFactoryProvider` resolves these to a `ConnectionFactory`: no
 overrides means the application's own factory is reused, otherwise a
 `CachingConnectionFactory` is created and cached per distinct set of settings, so
@@ -58,7 +68,9 @@ The provider therefore does two things:
   timeouts and SASL config) is **inherited**. Without this, filling in only a username
   on a `spring.rabbitmq.ssl.enabled=true` deployment would silently drop to plaintext
   and send the credentials in the clear. The clone is shallow, which is what is wanted —
-  the `SSLSocketFactory` is shared, not rebuilt.
+  the `SSLSocketFactory` is shared, not rebuilt. Where the app has no connection of its
+  own there is nothing to inherit, and the configuration starts from the RabbitMQ
+  client's defaults instead; `rabbitMqSslEnabled` then has to be set explicitly.
 - `rabbitMqSslEnabled` forces the transport for a broker whose transport differs from
   the app's. It uses the JVM default `SSLContext`, so the platform trust store applies
   and certificates are actually validated, with `enableHostnameVerification()` on —
@@ -139,8 +151,9 @@ known-`type` filter, tolerates a blank `type`, and deduplicates by CloudEvent id
 
 ## Application configuration
 
-The host app provides the fallback broker connection (`spring.rabbitmq.*`, used for any
-field a plugin configuration leaves empty) and:
+The host app may provide a fallback broker connection (`spring.rabbitmq.*`, used for any
+field a plugin configuration leaves empty). It is optional — a plugin configuration that
+describes its broker in full needs none of it. The host app also provides:
 
 | Property                       | Default                 | Description                                     |
 |--------------------------------|-------------------------|-------------------------------------------------|

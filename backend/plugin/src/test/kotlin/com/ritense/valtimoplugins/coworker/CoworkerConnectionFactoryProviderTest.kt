@@ -19,6 +19,7 @@ package com.ritense.valtimoplugins.coworker
 import com.ritense.valtimoplugins.coworker.domain.CoworkerRabbitMqProperties
 import com.ritense.valtimoplugins.coworker.transport.CoworkerConnectionFactoryProvider
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory
@@ -174,6 +175,57 @@ class CoworkerConnectionFactoryProviderTest : BaseTest() {
         val secure = CoworkerRabbitMqProperties.of("broker", null, null, "u", "p", sslEnabled = true)
 
         assertThat(provider.connectionFactory(plain)).isNotSameAs(provider.connectionFactory(secure))
+    }
+
+    @Test
+    fun `a configuration describing its own broker works without any application connection`() {
+        // The plugin is configured through the web interface, so an app that carries no
+        // spring.rabbitmq.* of its own must still be able to talk to a broker.
+        val standalone = CoworkerConnectionFactoryProvider(null)
+
+        try {
+            val connectionFactory =
+                standalone.connectionFactory(
+                    CoworkerRabbitMqProperties.of("broker.example.nl", 5671, "/coworker", "user", "s3cret"),
+                )
+
+            assertThat(connectionFactory.host).isEqualTo("broker.example.nl")
+            assertThat(connectionFactory.port).isEqualTo(5671)
+            assertThat(connectionFactory.virtualHost).isEqualTo("/coworker")
+            assertThat(connectionFactory.username).isEqualTo("user")
+        } finally {
+            standalone.destroy()
+        }
+    }
+
+    @Test
+    fun `TLS can be enabled without an application connection to inherit it from`() {
+        val standalone = CoworkerConnectionFactoryProvider(null)
+
+        try {
+            val connectionFactory =
+                standalone.connectionFactory(
+                    CoworkerRabbitMqProperties.of("broker.example.nl", null, null, "user", "s3cret", sslEnabled = true),
+                ) as CachingConnectionFactory
+
+            assertThat(connectionFactory.rabbitConnectionFactory.isSSL).isTrue()
+            assertThat(connectionFactory.rabbitConnectionFactory.port).isEqualTo(5671)
+        } finally {
+            standalone.destroy()
+        }
+    }
+
+    @Test
+    fun `relying on application defaults without an application connection explains what to fill in`() {
+        val standalone = CoworkerConnectionFactoryProvider(null)
+
+        try {
+            assertThatThrownBy { standalone.connectionFactory(CoworkerRabbitMqProperties.APPLICATION_DEFAULTS) }
+                .isInstanceOf(IllegalStateException::class.java)
+                .hasMessageContaining("host, username and password")
+        } finally {
+            standalone.destroy()
+        }
     }
 
     @Test

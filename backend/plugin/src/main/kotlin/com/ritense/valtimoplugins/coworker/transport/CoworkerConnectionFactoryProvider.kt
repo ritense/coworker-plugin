@@ -31,25 +31,38 @@ import javax.net.ssl.SSLContext
 /**
  * Hands out the broker connection belonging to a CoWorker plugin configuration.
  *
- * A configuration that leaves the RabbitMQ fields empty reuses the host app's own
- * `ConnectionFactory` (`spring.rabbitmq.*`) — the behaviour this plugin had before
- * per-configuration credentials existed. A configuration that fills any of them in
- * gets its own [CachingConnectionFactory], seeded from the application factory so
- * that setting only a username and password keeps the app's host and port.
+ * A configuration that names its own broker is self-sufficient: it gets its own
+ * [CachingConnectionFactory] built from the plugin configuration alone, so a CoWorker
+ * plugin can be set up entirely through the Valtimo web interface without the host
+ * app carrying any `spring.rabbitmq.*` of its own.
+ *
+ * The host app's `ConnectionFactory` is used only where a configuration asks for it:
+ * a configuration that leaves every RabbitMQ field empty reuses it outright (the
+ * behaviour this plugin had before per-configuration credentials existed), and a
+ * configuration that fills in only some fields inherits the rest from it — setting
+ * just a username and password keeps the app's host and port. When the host app has
+ * no `ConnectionFactory` bean at all, [applicationConnectionFactory] is null and only
+ * fully self-describing configurations work; the ones that would have inherited fail
+ * with an explanation when they are used, rather than preventing startup.
  *
  * Connections are cached per distinct [CoworkerRabbitMqProperties], so several
  * plugin configurations aimed at the same broker with the same credentials share
  * one connection instead of opening one each.
  */
 open class CoworkerConnectionFactoryProvider(
-    private val applicationConnectionFactory: ConnectionFactory,
+    private val applicationConnectionFactory: ConnectionFactory?,
 ) : DisposableBean {
     private val connectionFactories = ConcurrentHashMap<CoworkerRabbitMqProperties, CachingConnectionFactory>()
     private val rabbitTemplates = ConcurrentHashMap<CoworkerRabbitMqProperties, RabbitTemplate>()
 
     open fun connectionFactory(properties: CoworkerRabbitMqProperties): ConnectionFactory =
         if (!properties.overridesApplicationDefaults) {
-            applicationConnectionFactory
+            applicationConnectionFactory ?: throw IllegalStateException(
+                "This CoWorker plugin configuration specifies no RabbitMQ connection of its own, " +
+                    "and the application has no ConnectionFactory bean to fall back on. Fill in at " +
+                    "least the host, username and password on the plugin configuration, or configure " +
+                    "spring.rabbitmq.* in the application.",
+            )
         } else {
             connectionFactories.computeIfAbsent(properties) { create(it) }
         }
@@ -70,7 +83,9 @@ open class CoworkerConnectionFactoryProvider(
         // `spring.rabbitmq.ssl.*` / an `amqps://` address, but also timeouts and SASL
         // config — is inherited instead of silently reset to the client's defaults.
         // ConnectionFactory.clone() is a shallow copy, which is what we want: the
-        // SSLSocketFactory is shared rather than rebuilt.
+        // SSLSocketFactory is shared rather than rebuilt. An app without a broker of
+        // its own has nothing to inherit, so the configuration starts from the
+        // client's defaults instead.
         val rabbitConnectionFactory =
             (applicationConnectionFactory as? AbstractConnectionFactory)
                 ?.rabbitConnectionFactory
@@ -89,12 +104,16 @@ open class CoworkerConnectionFactoryProvider(
         }
 
         val connectionFactory = CachingConnectionFactory(rabbitConnectionFactory)
-        connectionFactory.setHost(properties.host ?: applicationConnectionFactory.host)
+        // Each field falls back to the application's connection where there is one, and
+        // otherwise to whatever the RabbitMQ client already defaults to.
+        (properties.host ?: applicationConnectionFactory?.host)?.let {
+            connectionFactory.setHost(it)
+        }
         properties.port?.let { connectionFactory.port = it }
-        (properties.virtualHost ?: applicationConnectionFactory.virtualHost)?.let {
+        (properties.virtualHost ?: applicationConnectionFactory?.virtualHost)?.let {
             connectionFactory.setVirtualHost(it)
         }
-        (properties.username ?: applicationConnectionFactory.username)?.let {
+        (properties.username ?: applicationConnectionFactory?.username)?.let {
             connectionFactory.setUsername(it)
         }
         // Only the plugin configuration can supply a password; Spring's ConnectionFactory

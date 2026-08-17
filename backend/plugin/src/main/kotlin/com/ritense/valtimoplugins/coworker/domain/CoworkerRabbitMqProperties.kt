@@ -21,7 +21,9 @@ package com.ritense.valtimoplugins.coworker.domain
  * The broker connection a CoWorker plugin configuration talks to. Every field is
  * optional: an unset field falls back to whatever the host app configured under
  * `spring.rabbitmq.*`, so a configuration that only fills in credentials keeps
- * using the application's host and port.
+ * using the application's host and port. An app that configures no broker of its
+ * own has nothing to fall back to, so there a configuration has to describe its
+ * broker in full — see `CoworkerConnectionFactoryProvider`.
  *
  * Doubles as the cache key for connection factories and reply-queue listeners
  * (see `CoworkerConnectionFactoryProvider` / `CoworkerReplyListenerManager`), so it

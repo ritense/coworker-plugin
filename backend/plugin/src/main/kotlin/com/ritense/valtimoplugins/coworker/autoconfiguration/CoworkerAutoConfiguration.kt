@@ -45,6 +45,7 @@ import com.ritense.valueresolver.ValueResolverService
 import org.operaton.bpm.engine.RepositoryService
 import org.operaton.bpm.engine.RuntimeService
 import org.springframework.amqp.rabbit.connection.ConnectionFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -67,10 +68,17 @@ class CoworkerAutoConfiguration {
     // `replyQueue`, and CoworkerReplyListenerManager declares it durably on that
     // configuration's own connection when it starts listening.
 
+    /**
+     * The application's own broker connection is optional. A CoWorker plugin configuration
+     * is meant to be set up entirely through the Valtimo web interface, so an app that has
+     * no `spring.rabbitmq.*` — and therefore no `ConnectionFactory` bean — must still start;
+     * configurations that name their own broker work regardless.
+     */
     @Bean
     @ConditionalOnMissingBean(CoworkerConnectionFactoryProvider::class)
-    fun coworkerConnectionFactoryProvider(connectionFactory: ConnectionFactory): CoworkerConnectionFactoryProvider =
-        CoworkerConnectionFactoryProvider(connectionFactory)
+    fun coworkerConnectionFactoryProvider(
+        connectionFactory: ObjectProvider<ConnectionFactory>,
+    ): CoworkerConnectionFactoryProvider = CoworkerConnectionFactoryProvider(connectionFactory.getIfAvailable())
 
     @Bean
     @ConditionalOnMissingBean(RestCoworkerChatClient::class)
