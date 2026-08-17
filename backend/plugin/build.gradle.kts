@@ -42,7 +42,10 @@ dependencies {
 
     compileOnly(kotlin("reflect"))
     compileOnly("org.springframework.boot:spring-boot-starter-data-jpa")
-    compileOnly("org.springframework.boot:spring-boot-starter-amqp")
+    // AMQP is mandatory: CoworkerAutoConfiguration references
+    // org.springframework.amqp.rabbit.connection.ConnectionFactory in a @Bean signature, so the
+    // context fails to start without it. Published as `api` so consuming apps get it transitively.
+    api("org.springframework.boot:spring-boot-starter-amqp")
     // RestClient for the synchronous CoWorker REST transport; provided by the host app at runtime.
     compileOnly("org.springframework:spring-web")
     // Securing the plugin's management endpoint (HttpSecurityConfigurer); provided by the host app.
@@ -62,7 +65,6 @@ dependencies {
     testImplementation("com.ritense.valtimo:value-resolver")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-amqp")
     testImplementation("org.springframework:spring-web")
     testImplementation("org.mockito.kotlin:mockito-kotlin:$mockitoKotlinVersion")
 

@@ -21,3 +21,6 @@ Value resolvers for receive process link
 
 ## 0.3.0
 Support for amqps and username/password authentication
+
+## 0.3.1
+Fixed amqp library dependency issue
