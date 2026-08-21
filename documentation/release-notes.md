@@ -34,3 +34,6 @@ Fixed amqp library dependency issue
 
 ## 0.3.2
 Fixed missing bean issue in when plugin is used in a Valtimo implementation
+
+## 0.3.3
+Fixed TLS issue

@@ -115,6 +115,52 @@ class CoworkerReplyListenerManagerTest : BaseTest() {
     }
 
     @Test
+    fun `TLS sent as a boolean is read as a boolean`() {
+        val subscription =
+            manager().subscriptionOf(configuration("""{"replyQueue": "r", "rabbitMqSslEnabled": true}"""))
+
+        assertThat(subscription!!.connection.sslEnabled).isTrue()
+    }
+
+    @Test
+    fun `TLS sent as a string is still read as a boolean`() {
+        // The publish path binds the same JSON with Jackson's treeToValue, which coerces
+        // "true" to true. Reading it more strictly here would put the listener on a
+        // plaintext connection while the publisher uses amqps.
+        val subscription =
+            manager().subscriptionOf(configuration("""{"replyQueue": "r", "rabbitMqSslEnabled": "true"}"""))
+
+        assertThat(subscription!!.connection.sslEnabled).isTrue()
+    }
+
+    @Test
+    fun `TLS turned off as a string is read as false rather than as unset`() {
+        val subscription =
+            manager().subscriptionOf(configuration("""{"replyQueue": "r", "rabbitMqSslEnabled": "false"}"""))
+
+        assertThat(subscription!!.connection.sslEnabled).isFalse()
+    }
+
+    @Test
+    fun `an absent or unusable TLS value leaves the setting unset`() {
+        assertThat(manager().subscriptionOf(configuration("""{"replyQueue": "r"}"""))!!.connection.sslEnabled)
+            .isNull()
+        assertThat(
+            manager().subscriptionOf(configuration("""{"replyQueue": "r", "rabbitMqSslEnabled": "ja"}"""))!!
+                .connection.sslEnabled,
+        ).isNull()
+    }
+
+    @Test
+    fun `a host sent as a non-string is still read`() {
+        // Same reason as the TLS coercion: treeToValue would bind this onto the String field.
+        val subscription =
+            manager().subscriptionOf(configuration("""{"replyQueue": "r", "rabbitMqHost": 10}"""))
+
+        assertThat(subscription!!.connection.host).isEqualTo("10")
+    }
+
+    @Test
     fun `a configuration without a reply queue is skipped`() {
         assertThat(manager().subscriptionOf(configuration("""{"source": "urn:test"}"""))).isNull()
         assertThat(manager().subscriptionOf(configuration("""{"replyQueue": ""}"""))).isNull()

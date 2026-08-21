@@ -167,13 +167,44 @@ open class CoworkerReplyListenerManager(
                     virtualHost = properties.textOrNull(RABBITMQ_VIRTUAL_HOST),
                     username = properties.textOrNull(RABBITMQ_USERNAME),
                     password = properties.textOrNull(RABBITMQ_PASSWORD),
-                    sslEnabled = properties.get(RABBITMQ_SSL_ENABLED)?.takeIf { it.isBoolean }?.asBoolean(),
+                    sslEnabled = properties.booleanOrNull(RABBITMQ_SSL_ENABLED),
                 ),
         )
     }
 
     private fun ObjectNode.textOrNull(field: String): String? =
-        get(field)?.takeIf { it.isTextual }?.textValue()?.takeIf { it.isNotBlank() }
+        get(field)?.takeIf { it.isValueNode && !it.isNull }?.asText()?.takeIf { it.isNotBlank() }
+
+    /**
+     * Reading a stored value has to coerce exactly as the publish path does, or the two
+     * disagree about the broker. There, `PluginFactory` binds the same JSON onto
+     * `CoworkerPlugin`'s typed fields with Jackson's `treeToValue`, which happily turns
+     * the string `"true"` into `true`; a stricter read here yields a *different*
+     * [CoworkerRabbitMqProperties], and therefore a second connection factory that is
+     * not the one the publisher proved to work.
+     *
+     * That divergence is silent and severe for TLS in particular: a configuration-only
+     * deployment has no application connection whose `amqps` setup could be inherited,
+     * so an [CoworkerRabbitMqProperties.sslEnabled] that reads as null leaves the
+     * listener talking plaintext to an amqps broker. The container starts, logs happily
+     * and never receives a message.
+     */
+    private fun ObjectNode.booleanOrNull(field: String): Boolean? =
+        when (val node = get(field)) {
+            null -> null
+            else ->
+                when {
+                    node.isBoolean -> node.booleanValue()
+                    node.isNumber -> node.asInt() != 0
+                    node.isTextual ->
+                        when (node.textValue().trim().lowercase()) {
+                            "true" -> true
+                            "false" -> false
+                            else -> null
+                        }
+                    else -> null
+                }
+        }
 
     private fun start(subscription: ReplySubscription) {
         val connectionFactory = connectionFactoryProvider.connectionFactory(subscription.connection)
