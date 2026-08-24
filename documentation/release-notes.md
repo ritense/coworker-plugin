@@ -37,3 +37,6 @@ Fixed missing bean issue in when plugin is used in a Valtimo implementation
 
 ## 0.3.3
 Fixed TLS issue
+
+## 0.3.4
+Fix for rabbitmq reply queue issues

@@ -25,7 +25,7 @@ import com.ritense.valtimoplugins.coworker.plugin.CoworkerPlugin
 import com.ritense.valtimoplugins.coworker.transport.CoworkerConnectionFactoryProvider
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.amqp.core.MessageListener
-import org.springframework.amqp.core.QueueBuilder
+import org.springframework.amqp.rabbit.connection.ConnectionFactory
 import org.springframework.amqp.rabbit.core.RabbitAdmin
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer
 import org.springframework.beans.factory.DisposableBean
@@ -60,6 +60,7 @@ open class CoworkerReplyListenerManager(
     private val listenersEnabled: Boolean,
 ) : DisposableBean {
     private val containers = ConcurrentHashMap<ReplySubscription, SimpleMessageListenerContainer>()
+    private val declarations = ConcurrentHashMap<CoworkerRabbitMqProperties, ReplyQueueDeclarations>()
     private val lock = ReentrantLock()
     private val disabledWarningLogged = AtomicBoolean(false)
 
@@ -140,6 +141,23 @@ open class CoworkerReplyListenerManager(
                         }
                     }
             }
+            redeclareMissingQueues()
+        }
+    }
+
+    /**
+     * Re-creates the reply queue of a running subscription that has gone missing from the
+     * broker.
+     *
+     * [ReplyQueueDeclarations] already covers the usual way a queue is lost, since a
+     * broker that comes back with empty state drops the connection on its way out. This
+     * is the backstop for a queue deleted while the connection stays up, which no
+     * connection listener can see. The container is left alone: once the queue is back,
+     * its next retry attaches to it.
+     */
+    private fun redeclareMissingQueues() {
+        containers.keys.forEach { subscription ->
+            declarations[subscription.connection]?.redeclareIfMissing(subscription.replyQueue)
         }
     }
 
@@ -209,20 +227,12 @@ open class CoworkerReplyListenerManager(
     private fun start(subscription: ReplySubscription) {
         val connectionFactory = connectionFactoryProvider.connectionFactory(subscription.connection)
 
-        // Declare the queue durably on this configuration's own connection. Failing to do
-        // so is not fatal: the broker may simply not grant this user 'configure' rights on
+        // Declare the queue durably on this configuration's own connection, and keep it
+        // declared: a one-off declare here would leave the listener permanently broken
+        // once the broker loses the queue. See ReplyQueueDeclarations. Failing to declare
+        // is not fatal — the broker may simply not grant this user 'configure' rights on
         // an already-existing queue.
-        runCatching {
-            RabbitAdmin(connectionFactory).declareQueue(QueueBuilder.durable(subscription.replyQueue).build())
-        }.onFailure {
-            // WARN, not DEBUG: if the queue does not exist and cannot be declared, the
-            // CoWorker server's replies are published to the default exchange with no
-            // matching queue and are dropped without a trace.
-            logger.warn(it) {
-                "Could not declare CoWorker reply queue '${subscription.replyQueue}'. If it does not already " +
-                    "exist on the broker, replies will be silently discarded."
-            }
-        }
+        declarationsFor(subscription.connection, connectionFactory).add(subscription.replyQueue)
 
         val container =
             SimpleMessageListenerContainer(connectionFactory).apply {
@@ -239,9 +249,11 @@ open class CoworkerReplyListenerManager(
         try {
             container.start()
         } catch (e: Exception) {
-            // Do not leave a half-started container behind holding consumer threads;
-            // the subscription stays unregistered and is retried on the next reconcile.
+            // Do not leave a half-started container behind holding consumer threads, nor a
+            // declaration for a subscription that never took: the subscription stays
+            // unregistered and is retried on the next reconcile.
             runCatching { container.destroy() }
+            releaseDeclaration(subscription)
             throw e
         }
 
@@ -257,10 +269,40 @@ open class CoworkerReplyListenerManager(
                 .onFailure { logger.warn(it) { "Failed to stop CoWorker reply listener on '${subscription.replyQueue}'" } }
             logger.info { "Stopped listening for CoWorker replies on '${subscription.replyQueue}'" }
         }
+        releaseDeclaration(subscription)
     }
 
+    private fun declarationsFor(
+        properties: CoworkerRabbitMqProperties,
+        connectionFactory: ConnectionFactory,
+    ): ReplyQueueDeclarations =
+        declarations.computeIfAbsent(properties) { replyQueueDeclarations(connectionFactory).also { it.attach() } }
+
+    /**
+     * Stops keeping [subscription]'s reply queue declared, and unregisters the connection
+     * listener once its broker serves no reply queue at all. Without that last step the
+     * manager would only ever add listeners — connection factories are shared between
+     * subscriptions aimed at the same broker, so every configuration change would leave
+     * one behind for the lifetime of the application.
+     */
+    private fun releaseDeclaration(subscription: ReplySubscription) {
+        val forConnection = declarations[subscription.connection] ?: return
+        if (forConnection.remove(subscription.replyQueue)) {
+            declarations.remove(subscription.connection)
+            forConnection.detach()
+        }
+    }
+
+    /** Overridable so a test can supply declarations that do not need a live broker. */
+    internal open fun replyQueueDeclarations(connectionFactory: ConnectionFactory): ReplyQueueDeclarations =
+        ReplyQueueDeclarations(connectionFactory, RabbitAdmin(connectionFactory))
+
     override fun destroy() {
-        lock.withLock { containers.keys.toList().forEach { stop(it) } }
+        lock.withLock {
+            containers.keys.toList().forEach { stop(it) }
+            declarations.values.forEach { it.detach() }
+            declarations.clear()
+        }
     }
 
     companion object {
