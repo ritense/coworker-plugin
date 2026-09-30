@@ -2,6 +2,10 @@
 
 Overzicht van wijzigingen per versie van de Coworker-plugin.
 
+## 0.3.6
+
+Ondersteuning voor Valtimo 13.48.0.
+
 ## Unreleased
 - De plugin vereist niet langer dat de client-applicatie zelf een RabbitMQ-verbinding
   (`spring.rabbitmq.*`) configureert. Een pluginconfiguratie die haar eigen broker
