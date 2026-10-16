@@ -73,9 +73,9 @@ publishing {
                     }
                 }
                 scm {
-                    connection = "git@github.com:valtimo-platform/coworker-plugin.git"
-                    developerConnection = "git@github.com:valtimo-platform/coworker-plugin.git"
-                    url = "https://github.com/valtimo-platform/coworker-plugin"
+                    connection = "git@github.com:ritense/coworker-plugin.git"
+                    developerConnection = "git@github.com:ritense/coworker-plugin.git"
+                    url = "https://github.com/ritense/coworker-plugin"
                 }
             }
 
